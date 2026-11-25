@@ -32,6 +32,14 @@ struct MenuContent: View {
 
         Divider()
 
+        #if DEBUG
+        Menu("Debug") {
+            Button("Simulate call start") { model.send(.meetingChanged(true)) }
+            Button("Simulate call end") { model.send(.meetingChanged(false)) }
+        }
+        Divider()
+        #endif
+
         Button("Quit Standup") { NSApplication.shared.terminate(nil) }
             .keyboardShortcut("q")
     }

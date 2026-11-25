@@ -19,6 +19,7 @@ final class AppModel {
     @ObservationIgnored private let toast: any ToastPresenting
     @ObservationIgnored private let popup: any PopupPresenting
     @ObservationIgnored private let screen: any ScreenStateMonitoring
+    @ObservationIgnored private let meetings: any MeetingMonitoring
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private let log = Logger(subsystem: "dev.standup.Standup", category: "app")
 
@@ -28,6 +29,7 @@ final class AppModel {
         toast = ToastController()
         popup = PopupAlertController(sounds: sounds)
         screen = ScreenStateMonitor()
+        meetings = MeetingMonitor()
         controller = ReminderController(store: SettingsStore(), minimumInterval: Self.minimumInterval)
         if screen.isAway {
             send(.screenAwayChanged(true))  // e.g. launched at login before unlocking
@@ -35,6 +37,10 @@ final class AppModel {
         screen.start { [weak self] away in
             self?.send(.screenAwayChanged(away))
         }
+        meetings.start { [weak self] inCall in
+            self?.send(.meetingChanged(inCall))
+        }
+        meetings.setEnabled(controller.settings.detectTeamsCalls)
         startTicking()
     }
 
@@ -52,7 +58,10 @@ final class AppModel {
 
     // MARK: UI actions
 
-    func apply(_ newSettings: AppSettings) { perform(controller.apply(newSettings)) }
+    func apply(_ newSettings: AppSettings) {
+        perform(controller.apply(newSettings))
+        meetings.setEnabled(controller.settings.detectTeamsCalls)
+    }
     func mute(_ preset: MutePreset) { perform(controller.mute(preset)) }
     func unmute() { perform(controller.unmute()) }
     func send(_ event: ReminderEngine.Event) { perform(controller.send(event)) }

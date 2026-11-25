@@ -84,6 +84,22 @@ make clean
 ```
 Open in Xcode with `make project && open Standup.xcodeproj`. Source files live in synced folders, so adding a file needs no project edits.
 
+### Debug builds (for testing)
+`make run` builds and launches the **Debug** build instead of the installed app. Only one copy runs at a time, so it quits the installed one first. Debug builds differ in two ways:
+- **1-minute minimum interval.** Release builds allow 5–240 minutes. This lets you watch reminders, mute expiry, and after-call alerts without waiting.
+- **Debug menu** in the menu bar menu: **Simulate call start / end**, to test Teams-call behavior without joining a call.
+
+Debug and installed builds share the **same saved settings** (same app ID). A 1-minute interval set in Debug also applies to the installed app. To test safely:
+```sh
+defaults export dev.standup.Standup ~/standup-settings-backup.plist   # back up
+make run                                                              # test with the Debug build
+# ...test...
+pkill -x Standup                                                      # quit the Debug build
+defaults import dev.standup.Standup ~/standup-settings-backup.plist   # restore settings
+make install                                                          # back to the installed app
+```
+Useful while testing: `/usr/bin/log stream --info --predicate 'subsystem == "dev.standup.Standup"'` shows every alert (`effect: …`), lock/unlock (`screen`), and Teams signal change (`meeting`).
+
 - [docs/DESIGN.md](docs/DESIGN.md): architecture, exact reminder rules, Teams detection, decisions
 - [docs/PLAN.md](docs/PLAN.md): milestone-by-milestone build plan with commit points
 

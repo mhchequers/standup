@@ -14,4 +14,5 @@ Standup is a native macOS menu bar break-reminder app (Swift 6 + SwiftUI, XcodeG
 - OS integrations live in `Standup/Services/`, each behind a protocol.
 - Never edit the generated `.xcodeproj`. Edit `project.yml` and run `make project`.
 - Never spawn subprocesses for periodic polling (see DESIGN §5).
+- Manual testing: use the Debug build (`make run`: 1-min interval, Debug ▸ Simulate call). It shares settings with the installed app, so **back up the user's settings with `defaults export` first, and restore them and `make install` afterward** (README "Debug builds").
 - Don't add features listed as out of scope in DESIGN §1 or in the PLAN backlog without asking.

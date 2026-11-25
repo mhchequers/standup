@@ -181,13 +181,22 @@ Goal: reminders actually fire.
 ---
 
 ## M7 — Teams call detection
-- [ ] `MicUsageProbe`: CoreAudio process-object reads with a long-lived in-process client, own PID excluded, and the prefix list from M2 findings (DESIGN §5)
-- [ ] `MeetingMonitor`: 5 s poll → `MeetingDebouncer` → engine `meetingStarted` / `meetingEnded`. Respects the "Detect Teams calls" toggle.
-- [ ] Engine rules 4 (meeting branch: nothing shown), 6, and 7 wired
-- [ ] Menu status "In a Teams call — will remind after" and the call icon
-- [ ] "Remind after call ends" toggle wired
-- [ ] Optional: a Debug-only menu item "Simulate call start/end" for testing without Teams
-- [ ] Debug logging of the raw Teams signal (per poll) to check for gaps over 60 s during a real multi-person call with camera and screen-share toggles (FINDINGS conclusion 8)
+- [x] `MicUsageProbe`: CoreAudio process-object reads with a long-lived in-process client, own PID excluded, and the prefix list from M2 findings (DESIGN §5)
+- [x] `MeetingMonitor`: 5 s poll → `MeetingDebouncer` → engine `meetingStarted` / `meetingEnded`. Respects the "Detect Teams calls" toggle.
+- [x] Engine rules 4 (meeting branch: nothing shown), 6, and 7 wired
+- [x] Menu status "In a Teams call — will remind after" and the call icon
+- [x] "Remind after call ends" toggle wired
+- [x] Optional: a Debug-only menu item "Simulate call start/end" for testing without Teams
+- [x] Debug logging of the raw Teams signal (per poll) to check for gaps over 60 s during a real multi-person call with camera and screen-share toggles (FINDINGS conclusion 8)
+
+**Notes:**
+- Detection pipeline (`TeamsCallSignal` + `MeetingDebouncer`) wrapped in Core's **`MeetingDetector`**, with 5 tests that replay FINDINGS runs 1 and 2. 111 tests total.
+- `MeetingMonitor` polls only while "Detect Teams calls" is on. Turning it off mid-call ends the call immediately.
+- Logging: raw signal **transitions** (with the active Teams processes) plus call started/ended, under category `meeting`. Transitions are enough to measure gaps against the 60 s debounce, without a log line every 5 s.
+- Debug builds have **Debug ▸ Simulate call start/end** in the menu.
+- Installed build idles at 0.0% CPU with detection on.
+- **Verified with the user (2026-11-25, solo Meet now, Debug build, 1-min interval):** call started 11 s after the raw signal. The raw signal stayed on **continuously** from 16:45:49 to 16:48:51 through camera on/off, screen share, and mute, so there were no gaps (FINDINGS conclusion 8 satisfied for a solo call). **Nothing appeared** during the call even though 3 reminders came due. The call ended 62 s after leaving, followed by **one pop-up**. The user's settings were backed up and restored around the test.
+- Still unverified: a real multi-person call. Watch the `meeting` log category during normal use in M9.
 
 **Verify** (with the user, real Teams call, 1–2 min interval): nothing on screen during the call (menu shows the call state), a normal alert about 60 s after leaving, and none if the toggle is off. A muted call still counts. Opening Teams without a call does nothing.
 

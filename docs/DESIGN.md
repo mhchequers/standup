@@ -52,6 +52,7 @@ StandupCore/      Framework target: pure logic, Foundation only, 100% unit teste
     TeamsCallSignal.swift   the verified "is Teams in a call" rule over AudioProcessSample values (§5)
     StatusText.swift        menu status line strings
     ScreenAwayTracker.swift combines the away signals (§6)
+    MeetingDetector.swift   TeamsCallSignal + MeetingDebouncer: one poll of the detection pipeline (§5)
     ReminderController.swift engine + SettingsStore + clock + status/icon: all app wiring that doesn't need AppKit (tested)
     Clock.swift             protocol Clock { var now: Date }, SystemClock (the engine takes `at:` instead of a clock)
     SettingsStore.swift     UserDefaults load/save (Foundation only, so it lives here)
@@ -59,7 +60,7 @@ Standup/
   Services/       Thin adapters to the OS — each behind a protocol so AppModel can be tested with fakes
     ScreenStateMonitor.swift   lock / sleep / display-sleep / screensaver / session switches → ScreenAwayTracker
     MicUsageProbe.swift        CoreAudio process-object reads (who is using the mic)
-    MeetingMonitor.swift       polls MicUsageProbe, feeds MeetingDebouncer
+    MeetingMonitor.swift       polls MicUsageProbe every 5 s (only while detection is on) → MeetingDetector
     ToastController.swift      corner toast + shared FloatingPanel (non-activating, all Spaces)
     PopupAlertController.swift floating NSPanel + looping sound
     SoundPlayer.swift          NSSound wrapper, system sound list
@@ -182,7 +183,7 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 
 | Setting | Default | Notes |
 |---|---|---|
-| Interval (min) | 30 | 5–240. Debug builds allow 1. |
+| Interval (min) | 30 | 5–240. Debug builds allow 1 (see README "Debug builds"). |
 | Active days | Mon–Fri | |
 | Work hours | 9:00–17:00 | end must be > start (no overnight) |
 | Alert style | Pop-up | Corner toast / Pop-up |
@@ -239,7 +240,7 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 | Mute survives restart | `SettingsStoreTests.muteUntilRoundTripAndClear`, `persistedMute*`, `ReminderControllerTests.muteSurvivesRestartAndShowsInMenu`, `unmuteClearsSavedMute`, `expiredMuteIsClearedFromStorage` |
 | Settings persist | `SettingsStoreTests.*`, `AppSettingsTests.roundTrips*`, `missingKeysDecodeToDefaults`, `ReminderControllerTests.settingsSurviveRestart`, `applyClampsBeforeSaving` |
 | Teams detection rule | `TeamsCallSignalTests.*` (cases from FINDINGS run 2) |
-| Call start/end timing | `MeetingDebouncerTests.*`, including the 54 s gap from FINDINGS run 1 |
+| Call start/end timing | `MeetingDebouncerTests.*` (including the 54 s gap from FINDINGS run 1), `MeetingDetectorTests.*` (full pipeline replayed against FINDINGS run 2) |
 | Nothing on screen during a call | `rule4_inMeetingShowsNothingOnScreen`, `rule4_longCallStillGivesOnlyOneAlertAfter`, `rule6_eachCallDefersIndependently` |
 | Reminder after call | `rule6_*`, `mutingDuringCallCancelsAfterCallReminder` |
 | Detection / after-call toggles | `rule4_detectionOffIgnoresMeetings`, `rule6_noAlertWhenToggleOff`, `rule6_turningDetectionOffDropsDeferredReminder` |
