@@ -51,12 +51,13 @@ StandupCore/      Framework target: pure logic, Foundation only, 100% unit teste
     MeetingDebouncer.swift  raw mic samples → debounced inMeeting on/off
     TeamsCallSignal.swift   the verified "is Teams in a call" rule over AudioProcessSample values (§5)
     StatusText.swift        menu status line strings
+    ScreenAwayTracker.swift combines the away signals (§6)
     ReminderController.swift engine + SettingsStore + clock + status/icon: all app wiring that doesn't need AppKit (tested)
     Clock.swift             protocol Clock { var now: Date }, SystemClock (the engine takes `at:` instead of a clock)
     SettingsStore.swift     UserDefaults load/save (Foundation only, so it lives here)
 Standup/
   Services/       Thin adapters to the OS — each behind a protocol so AppModel can be tested with fakes
-    ScreenStateMonitor.swift   lock / sleep / display-sleep / session switches
+    ScreenStateMonitor.swift   lock / sleep / display-sleep / screensaver / session switches → ScreenAwayTracker
     MicUsageProbe.swift        CoreAudio process-object reads (who is using the mic)
     MeetingMonitor.swift       polls MicUsageProbe, feeds MeetingDebouncer
     ToastController.swift      corner toast + shared FloatingPanel (non-activating, all Spaces)
@@ -155,6 +156,9 @@ Our own floating windows (toast and pop-up) **can't** be reliably hidden from sc
 - `NSWorkspace`: `willSleepNotification` / `didWakeNotification`
 - `NSWorkspace`: `screensDidSleepNotification` / `screensDidWakeNotification`
 - `NSWorkspace`: `sessionDidResignActiveNotification` / `sessionDidBecomeActiveNotification` (fast user switching)
+- `DistributedNotificationCenter`: `com.apple.screensaver.didstart` / `didstop` (added in M6: a running screensaver means you're away)
+
+Each signal is tracked separately in Core's `ScreenAwayTracker` (tested), and you're away while any is active. So waking from sleep with the lock screen still up stays "away" until you unlock. On wake, the monitor also re-reads the real lock state in case a lock notification was missed.
 
 The initial state at launch comes from `CGSessionCopyCurrentDictionary()` (key `CGSSessionScreenIsLocked`). After wake, the tick also re-evaluates against the wall clock, so a late timer never causes a burst of alerts.
 
@@ -228,7 +232,7 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 | Remind every N minutes | `rule4_bannerRepeatsEveryInterval`, `fullWorkdayProducesExpectedReminders`, `rule1_*` |
 | Interval configurable (and clamped) | `rule3_*`, `intervalChangedWhileAwayAppliesOnReturn`, `intervalChangeWhilePopupShowingWaitsForDone`, `AppSettingsTests.intervalIsClamped` |
 | Active days and work hours | `ScheduleTests.*` (including DST), `rule2_noAlertsOutsideWorkHours`, `enablingTodayStartsCountdown`, `rule3_shrinkingHoursMakesIneligible` |
-| Hybrid clock: away restarts the countdown | `rule2_lockDiscardsCountdownAndUnlockGivesFullInterval`, `rule2_startedLockedStaysQuiet`, `rule8_*` |
+| Hybrid clock: away restarts the countdown | `rule2_lockDiscardsCountdownAndUnlockGivesFullInterval`, `rule2_startedLockedStaysQuiet`, `rule8_*`, `ScreenAwayTrackerTests.*` (lock, sleep, wake-while-locked, display sleep, screensaver, user switch) |
 | Corner toast style (sound / silent) | `rule4_bannerWithSound`, `rule4_bannerWithoutSoundIsSilent` |
 | Pop-up style, click to clear | `rule4_popupWaitsForDone`, `rule5_*`, `rule11_*` |
 | Mute presets and custom | `MuteTests.*`, `rule2_noAlertsWhileMuted`, `rule1_unmute*`, `rule1_expiredMute*`, `rule9_*` |

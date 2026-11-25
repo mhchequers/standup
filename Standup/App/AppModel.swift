@@ -18,6 +18,7 @@ final class AppModel {
     @ObservationIgnored let sounds: any SoundPlaying
     @ObservationIgnored private let toast: any ToastPresenting
     @ObservationIgnored private let popup: any PopupPresenting
+    @ObservationIgnored private let screen: any ScreenStateMonitoring
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private let log = Logger(subsystem: "dev.standup.Standup", category: "app")
 
@@ -26,7 +27,14 @@ final class AppModel {
         self.sounds = sounds
         toast = ToastController()
         popup = PopupAlertController(sounds: sounds)
+        screen = ScreenStateMonitor()
         controller = ReminderController(store: SettingsStore(), minimumInterval: Self.minimumInterval)
+        if screen.isAway {
+            send(.screenAwayChanged(true))  // e.g. launched at login before unlocking
+        }
+        screen.start { [weak self] away in
+            self?.send(.screenAwayChanged(away))
+        }
         startTicking()
     }
 

@@ -164,9 +164,15 @@ Goal: reminders actually fire.
 ---
 
 ## M6 — Screen lock and sleep awareness
-- [ ] `ScreenStateMonitor` (DESIGN §6) with initial state at launch
-- [ ] Feed `screenAway` into the engine (rules 1, 2, 8)
-- [ ] Unit tests for the engine paths, already covered in M3. Add any gaps found.
+- [x] `ScreenStateMonitor` (DESIGN §6) with initial state at launch
+- [x] Feed `screenAway` into the engine (rules 1, 2, 8)
+- [x] Unit tests for the engine paths, already covered in M3. Add any gaps found.
+
+**Notes:**
+- Signal aggregation is in Core (`ScreenAwayTracker`, 7 tests). `ScreenStateMonitor` only subscribes to notifications. 106 tests total.
+- Added a screensaver signal (not in the original list).
+- If launched while locked (e.g., at login), the engine starts "away".
+- User verified lock → unlock gives a fresh interval. The log confirmed `locked=true`, then `displaysAsleep` true/false while still away, then `locked=false → away=false`. The pop-up-while-locked and sleep checks were deferred (covered by the rule8 and tracker tests).
 
 **Verify:** start a countdown, lock (⌃⌘Q) for longer than the interval, and unlock. There should be no alert on unlock, and the status shows a full fresh interval. With the pop-up showing, locking dismisses it. Sleep and wake behave the same way.
 
