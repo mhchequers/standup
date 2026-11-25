@@ -60,15 +60,24 @@ Goal: an empty menu bar app that builds, tests, and installs to `/Applications` 
 ## M2 — Platform spikes (validate risks before building on them)
 Goal: confirm the platform assumptions in DESIGN §10 on **this company Mac**. Record results in `docs/FINDINGS.md`. **Needs the user for one real Teams call.**
 
-- [ ] `scripts/mic-probe.swift`: a standalone script (`swift scripts/mic-probe.swift`) that prints, every 2 s, each CoreAudio process object with `IsRunningInput == 1`: PID, bundle ID, and process name. Also print default-input-device `IsRunningSomewhere`.
-- [ ] Run the probe **during a real Teams call** with the user: unmuted, muted, camera on/off, screen sharing, and the 60 s after leaving. Record exactly which bundle IDs appear, and whether muting keeps the stream running.
-- [ ] Run it while **not** in a call with Teams open (expect nothing), and while using another mic app (expect a non-Teams ID).
-- [ ] Throwaway code in the app: request notification permission and post a test banner. Install with `make install` and confirm MDM allows it.
-- [ ] Throwaway code in the app: `SMAppService.mainApp.register()` from `/Applications`. Check its status, confirm it appears in System Settings → Login Items, and reboot once to confirm it launches.
-- [ ] Throwaway code in the app: a menu item that opens a `Window` scene via `openWindow` plus activation. Confirm it comes to the front over other apps.
-- [ ] Update DESIGN §5, §9, and §10 if anything differs. Remove the throwaway code, or keep it if it's already the right shape.
+- [x] `scripts/mic-probe.swift`: a standalone script (`swift scripts/mic-probe.swift`) that prints, every 2 s, each CoreAudio process object with `IsRunningInput == 1`: PID, bundle ID, and process name. Also print default-input-device `IsRunningSomewhere`.
+- [x] Run the probe **during a real Teams call** with the user: unmuted, muted, camera on/off, screen sharing, and the 60 s after leaving. Record exactly which bundle IDs appear, and whether muting keeps the stream running.
+- [x] Run it while **not** in a call with Teams open (expect nothing), and while using another mic app (expect a non-Teams ID).
+- [x] Throwaway code in the app: request notification permission and post a test banner. Install with `make install` and confirm MDM allows it.
+- [x] Throwaway code in the app: `SMAppService.mainApp.register()` from `/Applications`. Check its status, confirm it appears in System Settings → Login Items, and reboot once to confirm it launches.
+- [x] Throwaway code in the app: a menu item that opens a `Window` scene via `openWindow` plus activation. Confirm it comes to the front over other apps.
+- [x] Update DESIGN §5, §9, and §10 if anything differs. Remove the throwaway code, or keep it if it's already the right shape.
 
 **Verify:** `docs/FINDINGS.md` answers each item. Any changed decisions are reflected in DESIGN.md.
+
+**Notes** (details in [FINDINGS.md](FINDINGS.md)):
+- Teams capture is done by **`com.microsoft.teams2.modulehost`** (INPUT + OUTPUT for the whole call, **including while muted**). `vcxpc` isn't involved. DESIGN §5 signal rules were updated, and ModuleHost OUTPUT now counts too.
+- `kAudioDevicePropertyDeviceIsRunningSomewhere` is unreliable, so the device-level fallback and device-listener optimization were dropped.
+- Notifications, `SMAppService` login item (survives restart), and window activation all work with ad-hoc signing on the company Mac. No fallbacks are needed.
+- Windows must stay `.accessory` and just call `NSApp.activate()`. Switching to `.regular` leaves a Dock recents entry.
+- The probe was extended with OUTPUT, idle Microsoft processes, and typed step markers.
+- Spike code (`Standup/App/Spike.swift`) was removed. Side effects persist on this Mac and are harmless: notification permission granted, login item registered (M8 takes it over).
+- Carried to M7: re-verify with a real multi-person call, including camera and screen-share toggles.
 
 ⏸ **Commit point:** `spike: validate Teams mic detection, notifications, login item on target Mac`
 
@@ -99,7 +108,7 @@ Goal: everything configurable, with the menu reflecting state. No alerts yet.
 - [ ] `MenuContent`: status line (DESIGN §4 "Menu status line"); **Mute ▸** with 30 min / 1 hour / 2 hours / Until tomorrow / Until… / Until I unmute; **Unmute** (only when muted); **Settings…**; **Quit Standup**
 - [ ] Menu bar icon reflects state: normal `figure.stand`, muted `bell.slash`, in a call `phone.fill`, outside hours or paused uses the normal icon dimmed. Final symbols are picked during build.
 - [ ] `SettingsView`, with sections for Schedule (interval stepper, weekday toggles, start/end time pickers), Alerts (style, sound picker plus Preview, which is wired in M5), Meetings (two toggles, wired in M7), and General (launch at login, wired in M8; app version)
-- [ ] Settings window: `Window` scene, `openWindow` + activation-policy dance (DESIGN §8)
+- [ ] Settings window: `Window` scene, `openWindow` + `NSApp.activate()`, staying `.accessory` (DESIGN §8, FINDINGS D4)
 - [ ] `CustomMuteView` (DESIGN §8)
 - [ ] Changes persist immediately and survive relaunch
 
@@ -142,6 +151,7 @@ Goal: reminders actually fire.
 - [ ] Menu status "In a Teams call — will remind after" and the call icon
 - [ ] "Remind after call ends" toggle wired
 - [ ] Optional: a Debug-only menu item "Simulate call start/end" for testing without Teams
+- [ ] Debug logging of the raw Teams signal (per poll) to check for gaps over 60 s during a real multi-person call with camera and screen-share toggles (FINDINGS conclusion 8)
 
 **Verify** (with the user, real Teams call, 1–2 min interval): exactly one silent banner during the call (and hidden when screen sharing), a normal alert about 60 s after leaving, and none if the toggle is off. A muted call still counts. Opening Teams without a call does nothing.
 
@@ -175,6 +185,5 @@ Goal: reminders actually fire.
 ## Backlog (not committed to; ask before doing)
 - A bundled or custom jingle sound file (user-chosen file)
 - Detecting other call apps (Zoom, Meet in Chrome). The prefix list makes this easy.
-- Device-listener gating of mic polling (energy optimization)
 - A custom in-app toast if notifications are blocked by MDM
 - A Homebrew-style or DMG release if it's ever shared with coworkers (needs a Developer ID and notarization)

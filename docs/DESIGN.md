@@ -124,13 +124,17 @@ This is the source of truth for timing behavior. Tests in `StandupTests/Reminder
 ### Approach
 - **Signal:** CoreAudio *process objects*, available on macOS 14.2+. Read `kAudioHardwarePropertyProcessObjectList` on `kAudioObjectSystemObject`. For each process object read `kAudioProcessPropertyIsRunningInput`, `kAudioProcessPropertyBundleID`, and `kAudioProcessPropertyPID`.
 - **No permission prompt:** this is a property read, not audio capture, so no microphone TCC permission is needed.
-- **Teams match:** bundle ID has a prefix in `["com.microsoft.teams", "com.microsoft.vcxpc"]`. These IDs were checked on this Mac: the app is `com.microsoft.teams2`, its helpers are `com.microsoft.teams2.helper` and `com.microsoft.teams2.modulehost`, and the media XPC service `com.microsoft.vcxpc` has the camera entitlement. Exclude our own PID. **Milestone 2 confirms which of these actually holds the mic during a call.**
-- **Muted in Teams:** Teams normally keeps the input stream running while you're muted in a call, so a muted call still counts as a call. Milestone 2 verifies this.
-- **Polling:** every 5 s, **in-process**, with one long-lived CoreAudio client. **Never spawn a subprocess per poll.** One project polled by spawning a helper every 3 s, and after about an hour macOS power management broke ([yogurt#143](https://github.com/FrigadeHQ/yogurt/issues/143)). Polling is chosen over property listeners because listeners on `IsRunningInput` have been reported not to fire on recent macOS. An optional later optimization is a `kAudioDevicePropertyDeviceIsRunningSomewhere` listener on input devices to gate polling.
+- **Teams call signal** (verified in M2, see FINDINGS.md): Teams is "active" when either holds:
+  - a `com.microsoft.teams2.modulehost` process has `IsRunningInput` **or** `IsRunningOutput`, or
+  - any `com.microsoft.teams*` process has `IsRunningInput`.
+
+  Output from `com.microsoft.teams2.helper` is **ignored**, because it's UI sounds such as the join/leave chimes. Our own PID is excluded. The match rules live in one constant so they're easy to adjust.
+- **Muted in Teams:** verified in M2 that the input stream keeps running while muted, and ModuleHost output runs for the whole call. The pre-join screen counts as a call because the mic preview is live.
+- **Polling:** every 5 s, **in-process**, with one long-lived CoreAudio client. **Never spawn a subprocess per poll.** One project polled by spawning a helper every 3 s, and after about an hour macOS power management broke ([yogurt#143](https://github.com/FrigadeHQ/yogurt/issues/143)). Polling is chosen over property listeners because listeners on `IsRunningInput` have been reported not to fire on recent macOS. **Don't use `kAudioDevicePropertyDeviceIsRunningSomewhere`**: in M2 it read false while Teams was capturing.
 - **Debounce** (`MeetingDebouncer`, pure, tested):
   - **start:** Teams input is active for ≥ 10 s continuously. This ignores device-test blips.
-  - **end:** Teams input is inactive for ≥ 60 s continuously. This ignores quick hiccups and rejoins.
-- **Fallback** if process objects turn out unreliable in Milestone 2: treat "the default input device is running somewhere and Teams is running" as in a call. This is less precise, because any mic use counts while Teams is open.
+  - **end:** Teams is inactive for ≥ 60 s continuously. This ignores quick hiccups and rejoins. M2 saw a 54 s mid-call input gap, likely from a camera or screen-share toggle.
+- **No device-level fallback:** M2 showed the device property is unreliable. If process objects ever stop working, revisit the design rather than guessing.
 
 ### Why not the alternatives
 - **Microsoft Graph presence API:** needs an Azure AD app registration and tenant admin consent on a company account.
@@ -178,7 +182,7 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 | Remind after call ends | On | |
 | Launch at login | On | Reflects `SMAppService.mainApp.status` live. Not stored in `UserDefaults`. |
 
-**Settings window:** a SwiftUI `Window` scene with id `settings`, opened from the menu with `openWindow(id:)`. While it's open the app switches to `.regular` activation policy and calls `NSApp.activate()`, then returns to `.accessory` when it closes. This is the reliable pattern for accessory apps. `SettingsLink` from a `MenuBarExtra` is known not to bring the window forward. If this still misbehaves, the fallback is the hidden-window `openSettings` technique ([steipete](https://steipete.me/posts/2025/showing-settings-from-macos-menu-bar-items/)).
+**Settings window:** a SwiftUI `Window` scene with id `settings`, opened from the menu with `openWindow(id:)`. Open it with `openWindow(id:)` followed by `NSApp.activate()`, and **keep the `.accessory` activation policy**. M2 found that switching to `.regular` leaves the app in the Dock's recent-apps section, while plain `activate()` brings the window to the front with focus and no Dock icon (FINDINGS Test D). `SettingsLink` from a `MenuBarExtra` is known not to bring the window forward. If this still misbehaves, the fallback is the hidden-window `openSettings` technique ([steipete](https://steipete.me/posts/2025/showing-settings-from-macos-menu-bar-items/)).
 
 **Custom mute window:** a small `Window` with a date-and-time `DatePicker` (default: now + 90 min, must be in the future) and **Mute** / **Cancel** buttons.
 
@@ -194,11 +198,11 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 
 | Risk | Check | Mitigation |
 |---|---|---|
-| Teams' mic use shows under an unexpected bundle ID (e.g., `com.apple.WebKit.GPU`) | `scripts/mic-probe.swift` during a real call | Adjust the prefix list, or use the §5 fallback |
-| Company MDM blocks notifications for unknown apps | Install, then check System Settings → Notifications | Use the pop-up style only. Possibly add a custom toast window. |
-| Login item blocked or managed by MDM | Install, then check System Settings → Login Items | LaunchAgent fallback (§9) |
+| Teams' mic use shows under an unexpected bundle ID | ✅ M2: `com.microsoft.teams2.modulehost` | Signal rules in §5 |
+| Company MDM blocks notifications for unknown apps | ✅ M2: not blocked | — |
+| Login item blocked or managed by MDM | ✅ M2: works, survives restart | — |
 | XcodeGen output incompatible with Xcode 27.2 | `make project && make build` | Try `options.projectFileFormat: xcproj` (XcodeGen 2.48, experimental), or commit a hand-made project |
-| Settings window doesn't come to the front | Manual test | steipete hidden-window technique |
+| Settings window doesn't come to the front | ✅ M2: `openWindow` + `activate()` works | — |
 
 ## 11. References and prior art
 - sigstop: "How sigstop knows you are on a call, with zero permissions" — https://dev.to/mohamedelshesheny/how-sigstop-knows-you-are-on-a-call-with-zero-permissions-1kfj
