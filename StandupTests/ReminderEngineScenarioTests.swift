@@ -4,8 +4,8 @@ import Testing
 
 /// Cross-feature scenarios found by mapping each user requirement (DESIGN §1) to tests.
 @Suite struct ReminderEngineScenarioTests {
-    func makeEngine(muteUntil: Date? = nil, _ configure: (inout Settings) -> Void = { _ in }) -> ReminderEngine {
-        var settings = Settings()
+    func makeEngine(muteUntil: Date? = nil, _ configure: (inout AppSettings) -> Void = { _ in }) -> ReminderEngine {
+        var settings = AppSettings()
         configure(&settings)
         return ReminderEngine(settings: settings, muteUntil: muteUntil, calendar: testCalendar)
     }

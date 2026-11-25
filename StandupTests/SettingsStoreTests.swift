@@ -13,14 +13,14 @@ struct SettingsStoreTests {
 
     @Test func emptyStoreGivesDefaults() {
         withStore { store, _ in
-            #expect(store.loadSettings() == Settings())
+            #expect(store.loadSettings() == AppSettings())
             #expect(store.loadMuteUntil() == nil)
         }
     }
 
     @Test func settingsRoundTrip() {
         withStore { store, _ in
-            var s = Settings()
+            var s = AppSettings()
             s.intervalMinutes = 50
             s.alertStyle = .banner
             store.save(s)
@@ -30,7 +30,7 @@ struct SettingsStoreTests {
 
     @Test func loadValidates() {
         withStore { store, _ in
-            var s = Settings()
+            var s = AppSettings()
             s.intervalMinutes = 1
             store.save(s)
             #expect(store.loadSettings().intervalMinutes == 5)
@@ -41,7 +41,7 @@ struct SettingsStoreTests {
     @Test func corruptDataGivesDefaults() {
         withStore { store, defaults in
             defaults.set(Data("not json".utf8), forKey: SettingsStore.settingsKey)
-            #expect(store.loadSettings() == Settings())
+            #expect(store.loadSettings() == AppSettings())
         }
     }
 

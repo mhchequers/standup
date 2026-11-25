@@ -33,7 +33,7 @@ public struct TimeOfDay: Codable, Hashable, Sendable, Comparable {
 }
 
 /// User settings (DESIGN §8). Launch-at-login is not stored here; it is read from SMAppService.
-public struct Settings: Codable, Equatable, Sendable {
+public struct AppSettings: Codable, Equatable, Sendable {
     public static let intervalRange = 5...240
     public static let defaultSoundName = "Glass"
 
@@ -43,7 +43,7 @@ public struct Settings: Codable, Equatable, Sendable {
     public var workEnd = TimeOfDay(hour: 17)
     public var alertStyle: AlertStyle = .popup
     /// A system sound name (e.g. "Glass"), or nil for no sound.
-    public var soundName: String? = Settings.defaultSoundName
+    public var soundName: String? = AppSettings.defaultSoundName
     public var detectTeamsCalls = true
     public var remindAfterCall = true
 
@@ -53,10 +53,10 @@ public struct Settings: Codable, Equatable, Sendable {
 
     /// Returns a copy with any invalid values replaced by defaults or clamped (DESIGN §8).
     /// `minimumInterval` is lowered to 1 in Debug builds for quick testing.
-    public func validated(minimumInterval: Int = Settings.intervalRange.lowerBound) -> Settings {
+    public func validated(minimumInterval: Int = AppSettings.intervalRange.lowerBound) -> AppSettings {
         var copy = self
-        let defaults = Settings()
-        copy.intervalMinutes = min(max(intervalMinutes, minimumInterval), Settings.intervalRange.upperBound)
+        let defaults = AppSettings()
+        copy.intervalMinutes = min(max(intervalMinutes, minimumInterval), AppSettings.intervalRange.upperBound)
         if copy.activeDays.isEmpty {
             copy.activeDays = defaults.activeDays
         }
@@ -77,7 +77,7 @@ public struct Settings: Codable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        let d = Settings()
+        let d = AppSettings()
         intervalMinutes = try c.decodeIfPresent(Int.self, forKey: .intervalMinutes) ?? d.intervalMinutes
         activeDays = try c.decodeIfPresent(Set<Weekday>.self, forKey: .activeDays) ?? d.activeDays
         workStart = try c.decodeIfPresent(TimeOfDay.self, forKey: .workStart) ?? d.workStart

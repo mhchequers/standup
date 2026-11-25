@@ -87,12 +87,12 @@ Goal: confirm the platform assumptions in DESIGN §10 on **this company Mac**. R
 Goal: all scheduling and decision logic implemented and tested, with no UI yet.
 
 - [x] `Clock` protocol, `SystemClock`, and a `FakeClock` (tests only)
-- [x] `Settings`: Codable, defaults from DESIGN §8, `validated()` (clamp interval, require end > start, at least one day; fall back to defaults otherwise)
+- [x] `AppSettings`: Codable, defaults from DESIGN §8, `validated()` (clamp interval, require end > start, at least one day; fall back to defaults otherwise)
 - [x] `Schedule`: `isInWorkHours(_ date:)`, `nextWindowStart(after:)` (for "resumes Mon 9:00 AM")
 - [x] `Mute`: presets `.minutes(30)`, `.hours(1)`, `.hours(2)`, `.untilTomorrow` (next local midnight), `.until(Date)`, `.indefinitely` (`Date.distantFuture`) → `muteUntil`. Expiry check.
 - [x] `ReminderEngine`: events → effects exactly per DESIGN §4 rules 1–11, plus a `status` value for the menu line
 - [x] `MeetingDebouncer`: 10 s on, 60 s off (DESIGN §5)
-- [x] `SettingsStore`: `UserDefaults` load/save of `Settings` and `muteUntil`, with an injectable `UserDefaults(suiteName:)` for tests
+- [x] `SettingsStore`: `UserDefaults` load/save of `AppSettings` and `muteUntil`, with an injectable `UserDefaults(suiteName:)` for tests
 - [x] Tests: one or more per DESIGN §4 rule, schedule edge cases (exactly at start/end, weekend, DST day), each mute preset, debouncer thresholds, and settings validation and round-trip
 
 **Verify:** `make test` is green, and the test names map to DESIGN §4 rule numbers.
@@ -104,7 +104,7 @@ Goal: all scheduling and decision logic implemented and tested, with no UI yet.
 - Added to Core, beyond the original list: **`TeamsCallSignal`** (the M2 detection rule, tested against FINDINGS run-2 cases) and **`StatusText`** (menu strings, with tests). Both are pure, so they belong here rather than in M7 or M4.
 - `stateChanged` effect dropped. The UI observes the engine directly.
 - Rule 10 (pop-up sound cap) is presentation, so it lives in M5's pop-up controller. Core provides `PopupSoundTiming` (4 s repeat, 120 s cap).
-- `Settings` decoding tolerates missing keys (older saved versions), and settings are stored under `settings.v1`.
+- `AppSettings` decoding tolerates missing keys (older saved versions), and settings are stored under `settings.v1`.
 - Sound "None" is allowed for both styles. DESIGN §8 was updated.
 
 ⏸ **Commit point:** `feat(core): reminder engine, schedule, mute, meeting debouncer with tests`
@@ -114,15 +114,25 @@ Goal: all scheduling and decision logic implemented and tested, with no UI yet.
 ## M4 — Menu and Settings UI
 Goal: everything configurable, with the menu reflecting state. No alerts yet.
 
-- [ ] `AppModel` (`@MainActor @Observable`): owns the engine, store, and services, and runs the 5 s tick via `Task` + `Task.sleep`
-- [ ] `MenuContent`: status line (DESIGN §4 "Menu status line"); **Mute ▸** with 30 min / 1 hour / 2 hours / Until tomorrow / Until… / Until I unmute; **Unmute** (only when muted); **Settings…**; **Quit Standup**
-- [ ] Menu bar icon reflects state: normal `figure.stand`, muted `bell.slash`, in a call `phone.fill`, outside hours or paused uses the normal icon dimmed. Final symbols are picked during build.
-- [ ] `SettingsView`, with sections for Schedule (interval stepper, weekday toggles, start/end time pickers), Alerts (style, sound picker plus Preview, which is wired in M5), Meetings (two toggles, wired in M7), and General (launch at login, wired in M8; app version)
-- [ ] Settings window: `Window` scene, `openWindow` + `NSApp.activate()`, staying `.accessory` (DESIGN §8, FINDINGS D4)
-- [ ] `CustomMuteView` (DESIGN §8)
-- [ ] Changes persist immediately and survive relaunch
+- [x] `AppModel` (`@MainActor @Observable`): owns the engine, store, and services, and runs the 5 s tick via `Task` + `Task.sleep`
+- [x] `MenuContent`: status line (DESIGN §4 "Menu status line"); **Mute ▸** with 30 min / 1 hour / 2 hours / Until tomorrow / Until… / Until I unmute; **Unmute** (only when muted); **Settings…**; **Quit Standup**
+- [x] Menu bar icon reflects state: normal `figure.stand`, muted `bell.slash`, in a call `phone.fill`, outside hours or paused uses the normal icon dimmed. Final symbols are picked during build.
+- [x] `SettingsView`, with sections for Schedule (interval stepper, weekday toggles, start/end time pickers), Alerts (style, sound picker plus Preview, which is wired in M5), Meetings (two toggles, wired in M7), and General (launch at login, wired in M8; app version)
+- [x] Settings window: `Window` scene, `openWindow` + `NSApp.activate()`, staying `.accessory` (DESIGN §8, FINDINGS D4)
+- [x] `CustomMuteView` (DESIGN §8)
+- [x] Changes persist immediately and survive relaunch
 
 **Verify:** `make run`. Change every setting, quit, relaunch, and confirm they persisted. Mute presets show the correct "Muted until …". The status line counts down as the menu is reopened.
+
+**Notes:**
+- Core type `Settings` was renamed to **`AppSettings`**, because it clashed with SwiftUI's `Settings` scene.
+- Min macOS raised to **15.0** for `.restorationBehavior(.disabled)` and `.defaultLaunchBehavior(.suppressed)`, so windows never reopen by themselves.
+- Deviation: the wiring (persistence sync, mute expiry, status line, icon) lives in a new Core **`ReminderController`** with 10 tests. `AppModel` is now just a timer plus an effect performer. 98 tests total.
+- Pulled forward from M5: a minimal `SoundPlayer` (lists `/System/Library/Sounds`, plays once), because the Settings sound picker and **Preview** need it. Looping and the cap stay in M5.
+- **Launch at login is not in Settings yet** (M8). General shows the version only.
+- M4 placeholder: a due pop-up is logged and instantly treated as dismissed, so the countdown keeps cycling. Removed in M5.
+- Icons: normal `figure.stand`, muted `bell.slash`, in call `phone.fill`. No dimming outside hours, because the status line says it.
+- Interval: type a value, or use the stepper (steps of 5). Out-of-range values are clamped on save. The last active day can't be switched off. Invalid hours (end ≤ start) show a red note and aren't saved until fixed.
 
 ⏸ **Commit point:** `feat(ui): menu bar menu, settings window, mute options`
 

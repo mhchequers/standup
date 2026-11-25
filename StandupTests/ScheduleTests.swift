@@ -3,7 +3,7 @@ import Testing
 @testable import StandupCore
 
 struct ScheduleTests {
-    let schedule = Schedule(settings: Settings(), calendar: testCalendar)  // Mon–Fri 9–17
+    let schedule = Schedule(settings: AppSettings(), calendar: testCalendar)  // Mon–Fri 9–17
 
     @Test func insideAndOutsideHours() {
         #expect(!schedule.isInWorkHours(date(Nov.mon, 8, 59, 59)))

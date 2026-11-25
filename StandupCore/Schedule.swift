@@ -14,7 +14,7 @@ public struct Schedule: Sendable {
         self.calendar = calendar
     }
 
-    public init(settings: Settings, calendar: Calendar = .current) {
+    public init(settings: AppSettings, calendar: Calendar = .current) {
         self.init(activeDays: settings.activeDays, start: settings.workStart, end: settings.workEnd, calendar: calendar)
     }
 

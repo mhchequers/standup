@@ -15,7 +15,7 @@ A small macOS menu bar app that reminds you to get up, stretch, and take a quick
 - **Microsoft Teams aware:** during a call you get one silent banner instead of a loud alert, then one normal reminder after the call ends
 
 ## Requirements
-- macOS 14.2 or later (developed on macOS 27)
+- macOS 15 or later (developed on macOS 27)
 - Xcode (developed with Xcode 27.2) and its command line tools. If builds fail with "A required plugin failed to load", run `sudo xcodebuild -runFirstLaunch` once.
 - [Homebrew](https://brew.sh) and XcodeGen: `brew install xcodegen`
 

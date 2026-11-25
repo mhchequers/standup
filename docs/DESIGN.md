@@ -26,13 +26,13 @@ Idle-based timer reset, snooze, stretch suggestions, streaks and stats, global h
 | Decision | Choice | Why |
 |---|---|---|
 | Language/UI | Swift 6 (strict concurrency), SwiftUI plus a little AppKit | Native, small, energy-efficient. Every needed API is first-party. |
-| Min macOS | 14.2 | CoreAudio process objects (which app is using the mic) need 14.2+. The dev machine runs macOS 27.2. |
+| Min macOS | 15.0 | CoreAudio process objects need 14.2+. 15.0 adds the SwiftUI window options `.restorationBehavior(.disabled)` and `.defaultLaunchBehavior(.suppressed)`, so Settings never reopens on its own at login (raised in M4). The dev machine runs macOS 27.2. |
 | Project generation | [XcodeGen](https://github.com/yonaskolb/XcodeGen) (≥ 2.48) from `project.yml`, with `syncedFolder` sources | `.xcodeproj` files are hard to edit by hand and by agents. `project.yml` is small and reviewable. Synced folders mean adding a file needs no project edits. The `.xcodeproj` is generated and git-ignored. |
 | Build driver | `Makefile` wrapping `xcodegen` and `xcodebuild` | Gives one command each for build, test, run, install, and uninstall. |
 | Tests | Swift Testing (`import Testing`) in a unit-test target | All scheduling and decision logic is pure and runs on an injected clock. |
 | Signing | Ad-hoc (`CODE_SIGN_IDENTITY = "-"`), no sandbox, no hardened runtime | Personal use on one Mac. No Apple Developer account needed. Locally built apps aren't quarantined, so Gatekeeper doesn't block them. |
 | Dependencies | None (no SwiftPM packages) | Keeps the build simple. |
-| Persistence | `UserDefaults`, a single Codable `Settings` value plus `muteUntil` | Small and local. Survives reinstalls because it's keyed by bundle ID. |
+| Persistence | `UserDefaults`, a single Codable `AppSettings` value plus `muteUntil` | Small and local. Survives reinstalls because it's keyed by bundle ID. |
 | Logging | `os.Logger`, subsystem = bundle ID | Viewable with `log stream`. See the README troubleshooting section. |
 
 **Bundle ID:** `dev.standup.Standup`. Change it in `project.yml` **before the first install** if you want something else. Changing it later orphans saved settings and the login item.
@@ -41,16 +41,17 @@ Idle-based timer reset, snooze, stretch suggestions, streaks and stats, global h
 
 ```
 Standup/          App target (AppKit/SwiftUI/CoreAudio allowed)
-  App/            StandupApp.swift (scenes), AppModel.swift (wires everything, @MainActor @Observable),
+  App/            StandupApp.swift (scenes), AppModel.swift (thin @MainActor @Observable wrapper: timer + effects around ReminderController),
                   SingleInstance.swift (a second running copy exits at launch, preventing double reminders)
 StandupCore/      Framework target: pure logic, Foundation only, 100% unit tested
-    Settings.swift          Codable settings + defaults + validation
+    AppSettings.swift        Codable settings + defaults + validation
     Schedule.swift          "is now inside work hours?", "when does the next window start?"
     Mute.swift              mute presets → muteUntil Date
     ReminderEngine.swift    the state machine (events in → effects out)
     MeetingDebouncer.swift  raw mic samples → debounced inMeeting on/off
     TeamsCallSignal.swift   the verified "is Teams in a call" rule over AudioProcessSample values (§5)
     StatusText.swift        menu status line strings
+    ReminderController.swift engine + SettingsStore + clock + status/icon: all app wiring that doesn't need AppKit (tested)
     Clock.swift             protocol Clock { var now: Date }, SystemClock (the engine takes `at:` instead of a clock)
     SettingsStore.swift     UserDefaults load/save (Foundation only, so it lives here)
 Standup/
@@ -224,18 +225,18 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 | Requirement | Tests |
 |---|---|
 | Remind every N minutes | `rule4_bannerRepeatsEveryInterval`, `fullWorkdayProducesExpectedReminders`, `rule1_*` |
-| Interval configurable (and clamped) | `rule3_*`, `intervalChangedWhileAwayAppliesOnReturn`, `intervalChangeWhilePopupShowingWaitsForDone`, `SettingsTests.intervalIsClamped` |
+| Interval configurable (and clamped) | `rule3_*`, `intervalChangedWhileAwayAppliesOnReturn`, `intervalChangeWhilePopupShowingWaitsForDone`, `AppSettingsTests.intervalIsClamped` |
 | Active days and work hours | `ScheduleTests.*` (including DST), `rule2_noAlertsOutsideWorkHours`, `enablingTodayStartsCountdown`, `rule3_shrinkingHoursMakesIneligible` |
 | Hybrid clock: away restarts the countdown | `rule2_lockDiscardsCountdownAndUnlockGivesFullInterval`, `rule2_startedLockedStaysQuiet`, `rule8_*` |
 | Banner style (sound / silent) | `rule4_bannerWithSound`, `rule4_bannerWithoutSoundIsSilent` |
 | Pop-up style, click to clear | `rule4_popupWaitsForDone`, `rule5_*`, `rule11_*` |
 | Mute presets and custom | `MuteTests.*`, `rule2_noAlertsWhileMuted`, `rule1_unmute*`, `rule1_expiredMute*`, `rule9_*` |
-| Mute survives restart | `SettingsStoreTests.muteUntilRoundTripAndClear`, `persistedMute*` |
-| Settings persist | `SettingsStoreTests.*`, `SettingsTests.roundTrips*`, `missingKeysDecodeToDefaults` |
+| Mute survives restart | `SettingsStoreTests.muteUntilRoundTripAndClear`, `persistedMute*`, `ReminderControllerTests.muteSurvivesRestartAndShowsInMenu`, `unmuteClearsSavedMute`, `expiredMuteIsClearedFromStorage` |
+| Settings persist | `SettingsStoreTests.*`, `AppSettingsTests.roundTrips*`, `missingKeysDecodeToDefaults`, `ReminderControllerTests.settingsSurviveRestart`, `applyClampsBeforeSaving` |
 | Teams detection rule | `TeamsCallSignalTests.*` (cases from FINDINGS run 2) |
 | Call start/end timing | `MeetingDebouncerTests.*`, including the 54 s gap from FINDINGS run 1 |
 | Silent banner once per call | `rule4_inMeetingShowsOneSilentBannerPerCall`, `rule6_eachCallGetsItsOwnBanner` |
 | Reminder after call | `rule6_*`, `mutingDuringCallCancelsAfterCallReminder` |
 | Detection / after-call toggles | `rule4_detectionOffIgnoresMeetings`, `rule6_noAlertWhenToggleOff`, `rule6_turningDetectionOffDropsDeferredReminder` |
 | Never two reminders at once | `rule4_popupWaitsForDone`, `callDuringPopupNeverDoublesUp`, `rule7_*` |
-| Menu status text | `StatusTextTests.*`, `statusReflectsState`, `statusPriority` |
+| Menu status text and icon | `StatusTextTests.*`, `statusReflectsState`, `statusPriority`, `ReminderControllerTests.statusLineCountsDownWithClock`, `callShowsCallIcon` |

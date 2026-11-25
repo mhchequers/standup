@@ -6,7 +6,7 @@ public struct ReminderEngine: Sendable {
     public enum Event: Equatable, Sendable {
         /// Periodic heartbeat (every ~5 s); also used once at launch.
         case tick
-        case settingsChanged(Settings)
+        case settingsChanged(AppSettings)
         /// Locked, asleep, displays asleep, or user session inactive.
         case screenAwayChanged(Bool)
         /// Debounced Teams call state (DESIGN §5).
@@ -37,7 +37,7 @@ public struct ReminderEngine: Sendable {
         case screenAway
     }
 
-    public private(set) var settings: Settings
+    public private(set) var settings: AppSettings
     public private(set) var muteUntil: Date?
     public private(set) var screenAway: Bool
     public private(set) var meetingDetected = false
@@ -50,7 +50,7 @@ public struct ReminderEngine: Sendable {
     private var shownMeetingBanner = false
     private var pendingAfterCall = false
 
-    public init(settings: Settings, muteUntil: Date? = nil, screenAway: Bool = false, calendar: Calendar = .current) {
+    public init(settings: AppSettings, muteUntil: Date? = nil, screenAway: Bool = false, calendar: Calendar = .current) {
         self.settings = settings
         self.muteUntil = muteUntil
         self.screenAway = screenAway

@@ -3,7 +3,7 @@ name: Standup
 options:
   bundleIdPrefix: dev.standup
   deploymentTarget:
-    macOS: "14.2"
+    macOS: "15.0"
   developmentLanguage: en
 
 settings:

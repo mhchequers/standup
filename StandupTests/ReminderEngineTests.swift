@@ -4,8 +4,8 @@ import Testing
 
 /// One suite per DESIGN §4 rule. Default settings: every 30 min, Mon–Fri 9–17, pop-up, sound "Glass".
 @Suite struct ReminderEngineTests {
-    func makeEngine(screenAway: Bool = false, _ configure: (inout Settings) -> Void = { _ in }) -> ReminderEngine {
-        var settings = Settings()
+    func makeEngine(screenAway: Bool = false, _ configure: (inout AppSettings) -> Void = { _ in }) -> ReminderEngine {
+        var settings = AppSettings()
         configure(&settings)
         return ReminderEngine(settings: settings, screenAway: screenAway, calendar: testCalendar)
     }
@@ -180,7 +180,7 @@ import Testing
 
     // MARK: Rule 6 — one normal alert after the call
 
-    func engineWithDeferredReminder(_ configure: (inout Settings) -> Void = { _ in }) -> ReminderEngine {
+    func engineWithDeferredReminder(_ configure: (inout AppSettings) -> Void = { _ in }) -> ReminderEngine {
         var e = makeEngine(configure)
         _ = e.handle(.tick, at: date(Nov.mon, 10, 0))
         _ = e.handle(.meetingChanged(true), at: date(Nov.mon, 10, 5))
