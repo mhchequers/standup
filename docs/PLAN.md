@@ -22,16 +22,16 @@ Ordering rationale: validate the risky platform assumptions early (M1–M2). Bui
 ## M1 — Project scaffold and install pipeline
 Goal: an empty menu bar app that builds, tests, and installs to `/Applications` with one command.
 
-- [ ] `brew install xcodegen` (need ≥ 2.48). Record the version in Notes.
-- [ ] `project.yml`:
+- [x] `brew install xcodegen` (need ≥ 2.48). Record the version in Notes.
+- [x] `project.yml`:
   - `Standup` app target and `StandupTests` unit-test target, both with `type: syncedFolder` sources
   - deployment target macOS 14.2, Swift 6 language mode, `SWIFT_STRICT_CONCURRENCY = complete`
   - Info.plist properties: `LSUIElement = YES`, `CFBundleDisplayName = Standup`, `LSApplicationCategoryType = public.app-category.healthcare-fitness`, version `0.1.0`
   - signing: `CODE_SIGN_IDENTITY = "-"`, `CODE_SIGN_STYLE = Manual`, no team, `ENABLE_HARDENED_RUNTIME = NO`, no sandbox entitlements
   - bundle ID `dev.standup.Standup` (DESIGN §2)
-- [ ] Folder skeleton per DESIGN §3, with `StandupApp.swift` containing a `MenuBarExtra` (SF Symbol `figure.stand`) that has a single **Quit Standup** item
-- [ ] One placeholder Swift Testing test, so `make test` exercises the pipeline
-- [ ] `Makefile` targets:
+- [x] Folder skeleton per DESIGN §3, with `StandupApp.swift` containing a `MenuBarExtra` (SF Symbol `figure.stand`) that has a single **Quit Standup** item
+- [x] One placeholder Swift Testing test, so `make test` exercises the pipeline
+- [x] `Makefile` targets:
   - `project`: `xcodegen generate`
   - `build`: Debug build into `./build` (`-derivedDataPath build`)
   - `test`: `xcodebuild test -scheme Standup -destination 'platform=macOS'`
@@ -39,9 +39,19 @@ Goal: an empty menu bar app that builds, tests, and installs to `/Applications` 
   - `install`: Release build, quit the running app, `ditto` to `/Applications/Standup.app`, open it
   - `uninstall`: run `--unregister-login-item` (once M8 exists), quit, remove the app, optionally `defaults delete dev.standup.Standup` (`make uninstall PURGE=1`)
   - `clean`: remove `build/` and the generated `.xcodeproj`
-- [ ] `.gitignore`: `build/`, `*.xcodeproj/`, `xcuserdata/`, `.DS_Store`, `DerivedData/`
+- [x] `.gitignore`: `build/`, `*.xcodeproj/`, `xcuserdata/`, `.DS_Store`, `DerivedData/`
 
 **Verify:** `make test` passes. `make install` puts Standup in `/Applications` with the icon in the menu bar and **no Dock icon**. Quit works. Opening from Finder or Spotlight works with no Gatekeeper warning.
+
+**Notes:**
+- XcodeGen 2.48.0. The default project format works with Xcode 27.2.
+- Prerequisite found: Xcode's first-launch components were missing. Fixed with `sudo xcodebuild -runFirstLaunch` (added to README requirements).
+- Deviation: pure logic is a separate **`StandupCore` framework target** (top-level `StandupCore/` folder) instead of `Standup/Core/`. Tests link only the framework, so `make test` never launches the menu bar app, and the no-AppKit rule is enforced by target boundaries. DESIGN §3 has been updated.
+- Info.plist is generated from `INFOPLIST_KEY_*` build settings (`GENERATE_INFOPLIST_FILE`), so there's no plist file in a synced folder.
+- The destination is pinned to `platform=macOS,arch=arm64`, which silences xcodebuild's multiple-destination warning. Builds are arm64-only, which is fine for this Mac.
+- `make uninstall` doesn't call `--unregister-login-item` yet (M8).
+- Found during user check: Spotlight showed 3 copies (installed plus the Debug and Release build products), and each could run at once. Fixed in two ways. The build dir is now **`build.noindex`**, which Spotlight skips. **`SingleInstance.enforce()`** at launch makes a second copy with the same bundle ID exit immediately (DESIGN §3).
+- Verified: tests pass. Installed and running from `/Applications`, `LSUIElement = true`, ad-hoc signed, not quarantined. `make run`, `make uninstall`, and reinstall all work.
 
 ⏸ **Commit point:** `chore: scaffold Standup menu bar app with XcodeGen and Makefile`
 
@@ -145,6 +155,7 @@ Goal: reminders actually fire.
 - [ ] App icon (`Assets.xcassets/AppIcon`). A simple generated icon is fine (optional `scripts/make-icon.swift` rendering an SF Symbol).
 - [ ] `make install` re-run is a clean upgrade (quits the old version, keeps settings)
 - [ ] README: finalize install, update, uninstall, and troubleshooting against reality
+- [ ] Refresh `CLAUDE.md`: switch from "next milestone" to a maintenance workflow, and add gotchas learned during the build (e.g., M2 findings)
 - [ ] Bump the version to `1.0.0`
 
 **Verify:** fresh `make install`, reboot, and Standup is in the menu bar. Toggle launch at login off, reboot, and it's not running. `make uninstall` leaves no login item behind (System Settings → Login Items).

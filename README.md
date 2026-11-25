@@ -16,7 +16,7 @@ A small macOS menu bar app that reminds you to get up, stretch, and take a quick
 
 ## Requirements
 - macOS 14.2 or later (developed on macOS 27)
-- Xcode (developed with Xcode 27.2) and its command line tools
+- Xcode (developed with Xcode 27.2) and its command line tools. If builds fail with "A required plugin failed to load", run `sudo xcodebuild -runFirstLaunch` once.
 - [Homebrew](https://brew.sh) and XcodeGen: `brew install xcodegen`
 
 ## Install
@@ -77,7 +77,7 @@ Standup checks every few seconds which apps are using the microphone, using a ma
 ## Development
 ```sh
 make project   # generate Standup.xcodeproj from project.yml (git-ignored)
-make build     # Debug build into ./build
+make build     # Debug build into ./build.noindex (".noindex" keeps Spotlight from listing build copies)
 make test      # run unit tests
 make run       # build Debug and launch it
 make clean

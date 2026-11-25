@@ -1,0 +1,71 @@
+name: Standup
+
+options:
+  bundleIdPrefix: dev.standup
+  deploymentTarget:
+    macOS: "14.2"
+  developmentLanguage: en
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MARKETING_VERSION: 0.1.0
+    CURRENT_PROJECT_VERSION: 1
+    # Ad-hoc signing: personal use, no Apple Developer account needed (DESIGN §2)
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: NO
+    ENABLE_APP_SANDBOX: NO
+    GENERATE_INFOPLIST_FILE: YES
+
+targets:
+  Standup:
+    type: application
+    platform: macOS
+    sources:
+      - path: Standup
+        type: syncedFolder
+    dependencies:
+      - target: StandupCore
+    settings:
+      base:
+        PRODUCT_NAME: Standup
+        PRODUCT_BUNDLE_IDENTIFIER: dev.standup.Standup
+        INFOPLIST_KEY_LSUIElement: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Standup
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.healthcare-fitness
+
+  # Pure logic (no AppKit/CoreAudio). Lets tests run without launching the app.
+  StandupCore:
+    type: framework
+    platform: macOS
+    sources:
+      - path: StandupCore
+        type: syncedFolder
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.standup.StandupCore
+
+  StandupTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: StandupTests
+        type: syncedFolder
+    dependencies:
+      - target: StandupCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.standup.StandupTests
+
+schemes:
+  Standup:
+    build:
+      targets:
+        Standup: all
+        StandupTests: [test]
+    test:
+      targets:
+        - StandupTests
