@@ -79,6 +79,7 @@ Standup checks every few seconds which apps are using the microphone, using a ma
 make project   # generate Standup.xcodeproj from project.yml (git-ignored)
 make build     # Debug build into ./build.noindex (".noindex" keeps Spotlight from listing build copies)
 make test      # run unit tests
+make coverage  # tests + StandupCore line coverage
 make run       # build Debug and launch it
 make clean
 ```

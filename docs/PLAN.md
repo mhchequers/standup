@@ -86,16 +86,26 @@ Goal: confirm the platform assumptions in DESIGN §10 on **this company Mac**. R
 ## M3 — Core logic (pure Swift, fully tested)
 Goal: all scheduling and decision logic implemented and tested, with no UI yet.
 
-- [ ] `Clock` protocol, `SystemClock`, and a `FakeClock` (tests only)
-- [ ] `Settings`: Codable, defaults from DESIGN §8, `validated()` (clamp interval, require end > start, at least one day; fall back to defaults otherwise)
-- [ ] `Schedule`: `isInWorkHours(_ date:)`, `nextWindowStart(after:)` (for "resumes Mon 9:00 AM")
-- [ ] `Mute`: presets `.minutes(30)`, `.hours(1)`, `.hours(2)`, `.untilTomorrow` (next local midnight), `.until(Date)`, `.indefinitely` (`Date.distantFuture`) → `muteUntil`. Expiry check.
-- [ ] `ReminderEngine`: events → effects exactly per DESIGN §4 rules 1–11, plus a `status` value for the menu line
-- [ ] `MeetingDebouncer`: 10 s on, 60 s off (DESIGN §5)
-- [ ] `SettingsStore`: `UserDefaults` load/save of `Settings` and `muteUntil`, with an injectable `UserDefaults(suiteName:)` for tests
-- [ ] Tests: one or more per DESIGN §4 rule, schedule edge cases (exactly at start/end, weekend, DST day), each mute preset, debouncer thresholds, and settings validation and round-trip
+- [x] `Clock` protocol, `SystemClock`, and a `FakeClock` (tests only)
+- [x] `Settings`: Codable, defaults from DESIGN §8, `validated()` (clamp interval, require end > start, at least one day; fall back to defaults otherwise)
+- [x] `Schedule`: `isInWorkHours(_ date:)`, `nextWindowStart(after:)` (for "resumes Mon 9:00 AM")
+- [x] `Mute`: presets `.minutes(30)`, `.hours(1)`, `.hours(2)`, `.untilTomorrow` (next local midnight), `.until(Date)`, `.indefinitely` (`Date.distantFuture`) → `muteUntil`. Expiry check.
+- [x] `ReminderEngine`: events → effects exactly per DESIGN §4 rules 1–11, plus a `status` value for the menu line
+- [x] `MeetingDebouncer`: 10 s on, 60 s off (DESIGN §5)
+- [x] `SettingsStore`: `UserDefaults` load/save of `Settings` and `muteUntil`, with an injectable `UserDefaults(suiteName:)` for tests
+- [x] Tests: one or more per DESIGN §4 rule, schedule edge cases (exactly at start/end, weekend, DST day), each mute preset, debouncer thresholds, and settings validation and round-trip
 
 **Verify:** `make test` is green, and the test names map to DESIGN §4 rule numbers.
+
+**Notes:**
+- 88 tests in 10 suites, all passing, with about 99.7% line coverage of StandupCore (`make coverage`, added). A mutation check (breaking "one banner per call") made the matching test fail as expected.
+- The user delegated test-coverage review to Claude. Mapping each requirement to tests found 8 cross-feature gaps (persisted mute at launch, day/interval changes while away or with the pop-up up, mute during a call, call during the pop-up, full-day count, status priority). They're covered in `ReminderEngineScenarioTests`. The map lives in DESIGN §12.
+- Deviation: no `FakeClock`. `ReminderEngine.handle(_:at:)` takes the time explicitly, which keeps the engine a pure value type and makes tests simpler. `Clock`/`SystemClock` stay for `AppModel`.
+- Added to Core, beyond the original list: **`TeamsCallSignal`** (the M2 detection rule, tested against FINDINGS run-2 cases) and **`StatusText`** (menu strings, with tests). Both are pure, so they belong here rather than in M7 or M4.
+- `stateChanged` effect dropped. The UI observes the engine directly.
+- Rule 10 (pop-up sound cap) is presentation, so it lives in M5's pop-up controller. Core provides `PopupSoundTiming` (4 s repeat, 120 s cap).
+- `Settings` decoding tolerates missing keys (older saved versions), and settings are stored under `settings.v1`.
+- Sound "None" is allowed for both styles. DESIGN §8 was updated.
 
 ⏸ **Commit point:** `feat(core): reminder engine, schedule, mute, meeting debouncer with tests`
 

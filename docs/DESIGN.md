@@ -49,7 +49,9 @@ StandupCore/      Framework target: pure logic, Foundation only, 100% unit teste
     Mute.swift              mute presets → muteUntil Date
     ReminderEngine.swift    the state machine (events in → effects out)
     MeetingDebouncer.swift  raw mic samples → debounced inMeeting on/off
-    Clock.swift             protocol Clock { var now: Date }, SystemClock, (tests) FakeClock
+    TeamsCallSignal.swift   the verified "is Teams in a call" rule over AudioProcessSample values (§5)
+    StatusText.swift        menu status line strings
+    Clock.swift             protocol Clock { var now: Date }, SystemClock (the engine takes `at:` instead of a clock)
     SettingsStore.swift     UserDefaults load/save (Foundation only, so it lives here)
 Standup/
   Services/       Thin adapters to the OS — each behind a protocol so AppModel can be tested with fakes
@@ -70,9 +72,9 @@ StandupTests/     Swift Testing tests; links only StandupCore, so the app never 
 scripts/          mic-probe.swift (diagnostic), make-icon.swift (optional)
 ```
 
-**Data flow:** OS monitors → `AppModel` turns OS signals into `ReminderEngine.Event`s → the engine returns `[Effect]` → `AppModel` performs the effects (show banner, show or dismiss pop-up, play or stop sound, refresh the menu). A tick (every 5 s) drives time-based events.
+**Data flow:** OS monitors → `AppModel` turns OS signals into `ReminderEngine.Event`s → `engine.handle(event, at: now)` returns `[Effect]` → `AppModel` performs the effects (show banner, show or dismiss pop-up, play or stop sound). A tick (every 5 s) drives time-based events. The menu observes the engine, which is a value type stored on the `@Observable` `AppModel`, so there's no explicit refresh effect.
 
-The engine has no knowledge of AppKit, so every rule in §4 can be unit tested with a `FakeClock`.
+The engine has no knowledge of AppKit, and every call passes the time explicitly, so every rule in §4 is unit tested with fixed dates.
 
 ## 4. Reminder engine: behavior spec
 
@@ -110,12 +112,13 @@ This is the source of truth for timing behavior. Tests in `StandupTests/Reminder
 11. **Work hours end while the pop-up is showing:** leave it. It still needs a click.
 
 ### Effects
-`showBanner(silent: Bool)`, `showPopup`, `dismissPopup`, `stopPopupSound`, `stateChanged` (menu or icon refresh).
+`showBanner(silent: Bool)`, `showPopup`, `dismissPopup`, `stopPopupSound`. `silent` is true for the in-call banner, or when the sound is None. Rule 10's timing is handled by the app's pop-up controller, using `PopupSoundTiming` constants from Core.
 
 ### Menu status line (derived)
-- `Next break in 23 min`
-- `In a Teams call — will remind after`
-- `Muted until 3:30 PM` / `Muted until tomorrow` / `Muted`
+- `Next break in 23 min` / `Next break in less than a minute`
+- `Break time!` (pop-up waiting for Done)
+- `In a Teams call — will remind after` (or just `In a Teams call` when "Remind after call ends" is off)
+- `Muted until 3:30 PM` / `Muted until tomorrow 9:00 AM` / `Muted until tomorrow` (midnight) / `Muted`
 - `Outside work hours — resumes Mon 9:00 AM`
 - `Paused — screen locked` (rarely visible, but correct)
 
@@ -177,7 +180,7 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 | Active days | Mon–Fri | |
 | Work hours | 9:00–17:00 | end must be > start (no overnight) |
 | Alert style | Pop-up | Banner / Pop-up |
-| Sound | Glass | any system sound; banner also allows None |
+| Sound | Glass | any system sound, or None (both styles) |
 | Detect Teams calls | On | |
 | Remind after call ends | On | |
 | Launch at login | On | Reflects `SMAppService.mainApp.status` live. Not stored in `UserDefaults`. |
@@ -213,3 +216,26 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 - Ad-hoc login item duplicates — https://github.com/sindresorhus/LaunchAtLogin/issues/100
 - XcodeGen ProjectSpec — https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md
 - Similar apps to borrow UI ideas from: Nook, Twenty, StandLock, Give Me A Break
+
+## 12. Requirement → test map
+
+`StandupCore` line coverage is about 99.7% (`make coverage`). This table maps each user-facing requirement to the tests that prove it. App-level behavior (real banners, sounds, CoreAudio, lock notifications) is verified manually per PLAN milestone.
+
+| Requirement | Tests |
+|---|---|
+| Remind every N minutes | `rule4_bannerRepeatsEveryInterval`, `fullWorkdayProducesExpectedReminders`, `rule1_*` |
+| Interval configurable (and clamped) | `rule3_*`, `intervalChangedWhileAwayAppliesOnReturn`, `intervalChangeWhilePopupShowingWaitsForDone`, `SettingsTests.intervalIsClamped` |
+| Active days and work hours | `ScheduleTests.*` (including DST), `rule2_noAlertsOutsideWorkHours`, `enablingTodayStartsCountdown`, `rule3_shrinkingHoursMakesIneligible` |
+| Hybrid clock: away restarts the countdown | `rule2_lockDiscardsCountdownAndUnlockGivesFullInterval`, `rule2_startedLockedStaysQuiet`, `rule8_*` |
+| Banner style (sound / silent) | `rule4_bannerWithSound`, `rule4_bannerWithoutSoundIsSilent` |
+| Pop-up style, click to clear | `rule4_popupWaitsForDone`, `rule5_*`, `rule11_*` |
+| Mute presets and custom | `MuteTests.*`, `rule2_noAlertsWhileMuted`, `rule1_unmute*`, `rule1_expiredMute*`, `rule9_*` |
+| Mute survives restart | `SettingsStoreTests.muteUntilRoundTripAndClear`, `persistedMute*` |
+| Settings persist | `SettingsStoreTests.*`, `SettingsTests.roundTrips*`, `missingKeysDecodeToDefaults` |
+| Teams detection rule | `TeamsCallSignalTests.*` (cases from FINDINGS run 2) |
+| Call start/end timing | `MeetingDebouncerTests.*`, including the 54 s gap from FINDINGS run 1 |
+| Silent banner once per call | `rule4_inMeetingShowsOneSilentBannerPerCall`, `rule6_eachCallGetsItsOwnBanner` |
+| Reminder after call | `rule6_*`, `mutingDuringCallCancelsAfterCallReminder` |
+| Detection / after-call toggles | `rule4_detectionOffIgnoresMeetings`, `rule6_noAlertWhenToggleOff`, `rule6_turningDetectionOffDropsDeferredReminder` |
+| Never two reminders at once | `rule4_popupWaitsForDone`, `callDuringPopupNeverDoublesUp`, `rule7_*` |
+| Menu status text | `StatusTextTests.*`, `statusReflectsState`, `statusPriority` |

@@ -4,7 +4,6 @@ import Testing
 
 struct ClockTests {
     @Test func systemClockReturnsCurrentTime() {
-        let delta = SystemClock().now.timeIntervalSince(Date())
-        #expect(abs(delta) < 1)
+        #expect(abs(SystemClock().now.timeIntervalSince(Date())) < 1)
     }
 }

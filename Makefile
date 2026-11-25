@@ -14,12 +14,13 @@ XCODEBUILD  := $(XCODEBUILD_BASE) -quiet
 DEBUG_APP   := $(BUILD_DIR)/Build/Products/Debug/$(APP_NAME).app
 RELEASE_APP := $(BUILD_DIR)/Build/Products/Release/$(APP_NAME).app
 
-.PHONY: help project build test run install uninstall quit clean
+.PHONY: help project build test coverage run install uninstall quit clean
 
 help:
 	@echo "make project    Generate $(PROJECT) from project.yml"
 	@echo "make build      Debug build"
 	@echo "make test       Run unit tests"
+	@echo "make coverage   Run tests and print StandupCore line coverage"
 	@echo "make run        Debug build and launch it"
 	@echo "make install    Release build, install to $(INSTALLED), launch"
 	@echo "make uninstall  Remove $(INSTALLED) (PURGE=1 also deletes settings)"
@@ -35,6 +36,12 @@ build: project
 # Not -quiet: show Swift Testing results, filtered to the useful lines.
 test: project
 	@$(XCODEBUILD_BASE) test 2>&1 | grep -E '^[✔✘]|error:|\*\* TEST'
+
+coverage: project
+	@rm -rf $(BUILD_DIR)/coverage.xcresult
+	@$(XCODEBUILD) test -enableCodeCoverage YES -resultBundlePath $(BUILD_DIR)/coverage.xcresult >/dev/null 2>&1
+	@xcrun xccov view --report --files-for-target StandupCore.framework $(BUILD_DIR)/coverage.xcresult \
+		| sed -E 's#/[^ ]*/StandupCore/##' | tail -n +2
 
 run: build quit
 	open "$(DEBUG_APP)"

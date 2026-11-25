@@ -7,10 +7,10 @@ Standup is a native macOS menu bar break-reminder app (Swift 6 + SwiftUI, XcodeG
 - `docs/DESIGN.md`: the source of truth for behavior. §4 is the reminder engine spec. If the implementation needs to differ, update DESIGN.md in the same change.
 
 ## Commands
-`make project | build | test | run | install | uninstall | clean`. Always run `make test` before declaring a milestone done.
+`make project | build | test | coverage | run | install | uninstall | clean`. Always run `make test` before declaring a milestone done. The user relies on Claude for test coverage: when behavior changes, update the requirement→test map in DESIGN §12.
 
 ## Conventions
-- `StandupCore/` (framework target) must stay pure: Foundation only, no AppKit, SwiftUI, CoreAudio, or UserNotifications. Inject time via `Clock`. Everything there gets Swift Testing tests, and tests link only this framework.
+- `StandupCore/` (framework target) must stay pure: Foundation only, no AppKit, SwiftUI, CoreAudio, or UserNotifications. Pass time explicitly (`handle(_:at:)`) or via `Clock`. Everything there gets Swift Testing tests, and tests link only this framework.
 - OS integrations live in `Standup/Services/`, each behind a protocol.
 - Never edit the generated `.xcodeproj`. Edit `project.yml` and run `make project`.
 - Never spawn subprocesses for periodic polling (see DESIGN §5).
