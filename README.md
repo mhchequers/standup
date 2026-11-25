@@ -8,11 +8,11 @@ A small macOS menu bar app that reminds you to get up, stretch, and take a quick
 - Lives in the menu bar (no Dock icon) and starts automatically when you log in
 - A reminder every _N_ minutes, only on the days and hours you choose
 - Two alert styles:
-  - **Banner**: a standard macOS notification, with an optional sound
+  - **Corner toast**: a small card at the top-right that hides itself after 10 seconds, with an optional sound
   - **Pop-up**: a floating window with a looping sound that you click **Done** to clear
 - Mute for 30 min, 1 hour, 2 hours, until tomorrow, until a custom time, or until you unmute
 - No reminders while your screen is locked or the Mac is asleep. The timer starts fresh when you come back.
-- **Microsoft Teams aware:** during a call you get one silent banner instead of a loud alert, then one normal reminder after the call ends
+- **Microsoft Teams aware:** during a call nothing pops up, so nothing appears in a screen share. You get one reminder after the call ends.
 
 ## Requirements
 - macOS 15 or later (developed on macOS 27)
@@ -33,9 +33,8 @@ make install
 `make install` builds a Release version, copies it to `/Applications/Standup.app`, and launches it. Look for the standing-figure icon in the top-right menu bar.
 
 **First launch:**
-1. macOS asks whether Standup may send notifications. Click **Allow**. This is needed for the Banner style and for the silent banner during calls.
-2. Standup registers itself to open at login, and macOS shows a "Login item added" notice. That's expected. You can turn it off in **Settings → General**.
-3. Open **Settings…** from the menu and set your interval, days, work hours, and alert style.
+1. Standup registers itself to open at login, and macOS shows a "Login item added" notice. That's expected. You can turn it off in **Settings → General**.
+2. Open **Settings…** from the menu and set your interval, days, work hours, and alert style.
 
 From then on you can open Standup from Spotlight, Launchpad, or Finder like any app, and it opens on its own after every restart.
 
@@ -68,10 +67,10 @@ The timer runs on the clock during your work hours. Locking the screen, sleeping
 Standup checks every few seconds which apps are using the microphone, using a macOS audio API that needs no special permission. If Microsoft Teams holds the mic for more than about 10 seconds, you're treated as in a call. The call counts as over about 60 seconds after Teams releases the mic. Nothing is recorded or listened to. You can turn this off in Settings.
 
 ## Troubleshooting
-- **No banners appear:** check System Settings → Notifications → Standup. Also check whether a Focus mode is on. Banners are also hidden while you share your screen, which is intended.
+- **No reminders appear:** check the menu's status line. It says why: muted, outside work hours, or in a Teams call. **Settings → Alerts → Show test alert** shows one immediately.
 - **Doesn't start after a reboot:** check System Settings → General → Login Items for Standup, and toggle **Launch at login** in Settings.
 - **"Standup can't be opened" warning:** this only happens if the app was copied from somewhere else, such as downloaded. Run `xattr -dr com.apple.quarantine /Applications/Standup.app`.
-- **Logs:** `log stream --predicate 'subsystem == "dev.standup.Standup"' --level debug`
+- **Logs:** `/usr/bin/log stream --info --predicate 'subsystem == "dev.standup.Standup"'`. Use the full path, because in zsh `log` is a different, built-in command.
 - **Teams detection diagnostics:** `swift scripts/mic-probe.swift` lists which apps are using the mic right now
 
 ## Development

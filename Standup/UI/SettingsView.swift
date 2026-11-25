@@ -4,7 +4,7 @@ import SwiftUI
 /// AppSettings window (DESIGN §8). Edits a draft and applies each valid change immediately.
 struct SettingsView: View {
     let model: AppModel
-    private let sounds = SoundPlayer.shared
+    private var sounds: any SoundPlaying { model.sounds }
 
     @State private var draft = AppSettings()
 
@@ -50,7 +50,7 @@ struct SettingsView: View {
             Section("Alerts") {
                 Picker("Style", selection: $draft.alertStyle) {
                     Text("Pop-up (click Done to clear)").tag(AlertStyle.popup)
-                    Text("Banner notification").tag(AlertStyle.banner)
+                    Text("Corner toast (hides itself)").tag(AlertStyle.banner)
                 }
                 .pickerStyle(.radioGroup)
 
@@ -71,6 +71,10 @@ struct SettingsView: View {
                         .disabled(draft.soundName == nil)
                     }
                 }
+
+                LabeledContent("Try it") {
+                    Button("Show test alert") { model.showTestAlert() }
+                }
             }
 
             Section {
@@ -80,7 +84,7 @@ struct SettingsView: View {
             } header: {
                 Text("Meetings")
             } footer: {
-                Text("During a Teams call, reminders become one silent banner. Detection checks which app is using the microphone. Nothing is recorded.")
+                Text("During a Teams call nothing pops up, so nothing shows in a screen share. Detection checks which app is using the microphone, and nothing is recorded.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

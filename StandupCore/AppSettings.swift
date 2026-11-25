@@ -1,6 +1,7 @@
 import Foundation
 
 public enum AlertStyle: String, Codable, Sendable, CaseIterable {
+    /// The corner toast. Raw value kept as "banner" so saved settings stay compatible.
     case banner
     case popup
 }

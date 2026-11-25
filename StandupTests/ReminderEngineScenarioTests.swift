@@ -95,7 +95,7 @@ import Testing
         var e = makeEngine { $0.alertStyle = .banner }
         let effects = tick(&e, from: date(Nov.mon, 8, 0), to: date(Nov.mon, 18, 0))
         #expect(effects.count == 15)  // 9:30, 10:00, … 16:30 (17:00 is outside hours)
-        #expect(effects.allSatisfy { $0 == .showBanner(silent: false) })
+        #expect(effects.allSatisfy { $0 == .showToast(silent: false) })
     }
 
     // Status priority: muted wins over outside-hours; locked wins over everything.

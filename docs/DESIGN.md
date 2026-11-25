@@ -13,10 +13,10 @@ Standup is a macOS menu bar app that reminds you to get up and move every _N_ mi
 | Menu bar | Icon in the top-right menu bar. No Dock icon (`LSUIElement`). The menu shows status, mute options, Settings…, and Quit. |
 | Launch at login | Registers itself as a login item, so it starts after every restart. Can be turned off in Settings. |
 | Schedule | Reminder interval in minutes. Active weekdays. Work hours (start–end, same day). |
-| Alert styles | **Banner**: macOS notification banner, with an optional sound. **Pop-up**: floating window and a looping sound that you click to clear. |
+| Alert styles | **Corner toast**: a small card at the top-right that hides itself after 10 s, with an optional sound. It's Standup's own window, not a macOS notification (see §7). **Pop-up**: floating window and a looping sound that you click to clear. |
 | Mute | 30 min, 1 hour, 2 hours, until tomorrow, until a custom date and time, or until unmuted. Mute survives app restarts. |
 | Screen lock | No alerts while locked or asleep. The countdown starts fresh on unlock or wake. |
-| Teams calls | When a reminder comes due during a call: **one silent banner** for the whole call, then **one normal alert after the call ends** (optional). |
+| Teams calls | When a reminder comes due during a call, **nothing is shown**, because it could appear in a screen share. The menu bar shows the call state, and you get **one normal alert after the call ends** (optional). |
 
 ### Explicitly out of scope (per discussion)
 Idle-based timer reset, snooze, stretch suggestions, streaks and stats, global hotkey, and break-for-a-break flows. Don't add these without asking.
@@ -59,7 +59,7 @@ Standup/
     ScreenStateMonitor.swift   lock / sleep / display-sleep / session switches
     MicUsageProbe.swift        CoreAudio process-object reads (who is using the mic)
     MeetingMonitor.swift       polls MicUsageProbe, feeds MeetingDebouncer
-    BannerNotifier.swift       UNUserNotificationCenter
+    ToastController.swift      corner toast + shared FloatingPanel (non-activating, all Spaces)
     PopupAlertController.swift floating NSPanel + looping sound
     SoundPlayer.swift          NSSound wrapper, system sound list
     LoginItemManager.swift     SMAppService.mainApp
@@ -73,7 +73,7 @@ StandupTests/     Swift Testing tests; links only StandupCore, so the app never 
 scripts/          mic-probe.swift (diagnostic), make-icon.swift (optional)
 ```
 
-**Data flow:** OS monitors → `AppModel` turns OS signals into `ReminderEngine.Event`s → `engine.handle(event, at: now)` returns `[Effect]` → `AppModel` performs the effects (show banner, show or dismiss pop-up, play or stop sound). A tick (every 5 s) drives time-based events. The menu observes the engine, which is a value type stored on the `@Observable` `AppModel`, so there's no explicit refresh effect.
+**Data flow:** OS monitors → `AppModel` turns OS signals into `ReminderEngine.Event`s → `engine.handle(event, at: now)` returns `[Effect]` → `AppModel` performs the effects (show toast, show or dismiss pop-up, play or stop sound). A tick (every 5 s) drives time-based events. The menu observes the engine, which is a value type stored on the `@Observable` `AppModel`, so there's no explicit refresh effect.
 
 The engine has no knowledge of AppKit, and every call passes the time explicitly, so every rule in §4 is unit tested with fixed dates.
 
@@ -100,20 +100,20 @@ This is the source of truth for timing behavior. Tests in `StandupTests/Reminder
 2. **Becoming ineligible**: `dueAt = nil`. The countdown is discarded, not paused. "Hybrid clock time" means the clock runs on wall time but restarts after you were away.
 3. **Interval changed in settings**: `dueAt = now + newInterval`.
 4. **Tick** with `eligible && now ≥ dueAt`:
-   - **In a meeting:** if no silent banner has been shown during this meeting, show one silent banner and set `shownMeetingBanner = true`. Either way, set `pendingAfterCall = true` and `dueAt = now + interval`. A long call produces exactly one banner.
+   - **In a meeting:** show nothing. Set `pendingAfterCall = true` and `dueAt = now + interval`. A long call still produces exactly one alert, after it ends (rule 6). (Changed in M5: originally a silent macOS banner. See §7.)
    - **Not in a meeting:** fire an alert in the configured style.
-     - Banner: show the banner and play the sound if enabled. `dueAt = now + interval`.
+     - Corner toast: show the toast and play the sound once if one is set. `dueAt = now + interval`.
      - Pop-up: show the pop-up. `dueAt = nil` until it's dismissed.
 5. **Pop-up dismissed** (click): `dueAt = now + interval`.
-6. **Meeting ended** (debounced): if `pendingAfterCall && remindAfterCall && eligible`, fire a normal alert as in 4. Then clear `pendingAfterCall` and `shownMeetingBanner`.
+6. **Meeting ended** (debounced): if `pendingAfterCall && remindAfterCall && eligible`, fire a normal alert as in 4. Then clear `pendingAfterCall`.
 7. **Meeting started while the pop-up is showing:** stop the sound and keep the window.
 8. **Screen away while the pop-up is showing:** dismiss the pop-up with no follow-up. Rule 2 applies, and on return rule 1 starts a fresh countdown.
 9. **Muted while the pop-up is showing:** dismiss it.
-10. **Pop-up sound:** replay every ~4 s until dismissed, for at most **2 minutes**. After that the window stays up but goes silent. This avoids blaring at an empty desk when you walked away without locking.
+10. **Pop-up sound:** replay every ~1.2 s until dismissed (was 4 s; tuned with the user in M5), for at most **2 minutes**. After that the window stays up but goes silent. This avoids blaring at an empty desk when you walked away without locking.
 11. **Work hours end while the pop-up is showing:** leave it. It still needs a click.
 
 ### Effects
-`showBanner(silent: Bool)`, `showPopup`, `dismissPopup`, `stopPopupSound`. `silent` is true for the in-call banner, or when the sound is None. Rule 10's timing is handled by the app's pop-up controller, using `PopupSoundTiming` constants from Core.
+`showToast(silent: Bool)`, `showPopup`, `dismissPopup`, `stopPopupSound`. `silent` is true when the sound is None. Rule 10's timing is handled by the app's pop-up controller, using `PopupSoundTiming` constants from Core. The toast's 10 s visibility comes from `ToastTiming`.
 
 ### Menu status line (derived)
 - `Next break in 23 min` / `Next break in less than a minute`
@@ -145,8 +145,8 @@ This is the source of truth for timing behavior. Tests in `StandupTests/Reminder
 - **Teams window titles:** need Accessibility or Screen Recording permission and break whenever Teams changes its UI.
 - **Camera-in-use:** misses audio-only calls.
 
-### Why banners (not the pop-up) during calls
-macOS hides notification banners while you share your screen by default (System Settings → Notifications → "Allow notifications when mirroring or sharing the display" is off). Our own floating window **cannot** be reliably hidden from screen share: `NSWindow.sharingType = .none` is ignored by ScreenCaptureKit on macOS 15.4+. So the silent banner is the screen-share-safe choice. We still set `sharingType = .none` on the pop-up as a best effort.
+### Why nothing is shown during calls
+Our own floating windows (toast and pop-up) **can't** be reliably hidden from screen share, because `NSWindow.sharingType = .none` is ignored by ScreenCaptureKit on macOS 15.4+. The original plan used a silent macOS banner, since macOS hides those during screen sharing. M5 dropped macOS notifications (see §7), so during a call Standup shows nothing and only updates the menu bar. We still set `sharingType = .none` on both windows as a best effort.
 
 ## 6. Screen lock and sleep detection
 
@@ -160,18 +160,19 @@ The initial state at launch comes from `CGSessionCopyCurrentDictionary()` (key `
 
 ## 7. Alerts
 
-### Banner
-- `UNUserNotificationCenter`. Authorization is requested on first launch. If it's denied, the menu shows a hint and a button that opens System Settings → Notifications.
-- The notification itself is always posted silent. When the style calls for sound, `SoundPlayer` plays the chosen sound. This allows any system sound and keeps silent banners truly silent.
-- The app keeps a single notification identifier, so a new banner replaces the old one instead of stacking.
+### Corner toast (style `banner` in saved settings)
+- Standup's own borderless, non-activating `FloatingPanel` at the **top-right** of the screen the mouse is on, just under the menu bar. It's on all Spaces and over full-screen apps, and doesn't steal focus.
+- Shows "Time to stand up / Stretch, walk around, grab some water." It fades out after **10 s** (`ToastTiming.visibleDuration`), and clicking it hides it sooner. A new toast replaces any visible one.
+- Plays the chosen sound **once** via `SoundPlayer` (none if the sound is None).
+- **Why not macOS notifications (`UNUserNotificationCenter`)?** M5 found that an ad-hoc-signed app's notification approval is tied to the exact build (designated requirement = `cdhash`). Every rebuild becomes "not allowed for this application" with no new prompt. Fixing that needs a stable signing identity (self-signed certificate or Apple ID team). The user chose our own window instead, so there's no permission and no signing setup. Trade-off: it isn't hidden during screen sharing, which is why nothing is shown during calls (§5).
 
 ### Pop-up
 - A non-activating `NSPanel` at `.floating` level, centered near the top of the main screen. It appears on all Spaces (`canJoinAllSpaces`, `fullScreenAuxiliary`) and doesn't steal keyboard focus from your work.
-- It contains a short message ("Time to stand up and stretch") and a **Done** button. Clicking Done dismisses it, and so does pressing Return once you've clicked into it.
+- It contains a short message ("Time to stand up / Stretch, walk around, grab some water.") and a **Done** button. Clicking Done dismisses it, and so does pressing Return once you've clicked into it.
 - Sound: the chosen sound loops per §4 rule 10.
 
 ### Sounds
-The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, …) by name via `NSSound(named:)`, plus **None** for banners. A **Preview** button sits next to the picker. A bundled or custom jingle file is a possible later addition (see PLAN backlog).
+The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, …) by name via `NSSound(named:)`, plus **None**. A **Preview** button sits next to the picker. A bundled or custom jingle file is a possible later addition (see PLAN backlog).
 
 ## 8. Settings
 
@@ -180,7 +181,7 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 | Interval (min) | 30 | 5–240. Debug builds allow 1. |
 | Active days | Mon–Fri | |
 | Work hours | 9:00–17:00 | end must be > start (no overnight) |
-| Alert style | Pop-up | Banner / Pop-up |
+| Alert style | Pop-up | Corner toast / Pop-up |
 | Sound | Glass | any system sound, or None (both styles) |
 | Detect Teams calls | On | |
 | Remind after call ends | On | |
@@ -203,7 +204,7 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 | Risk | Check | Mitigation |
 |---|---|---|
 | Teams' mic use shows under an unexpected bundle ID | ✅ M2: `com.microsoft.teams2.modulehost` | Signal rules in §5 |
-| Company MDM blocks notifications for unknown apps | ✅ M2: not blocked | — |
+| Company MDM blocks notifications for unknown apps | ✅ M2: not blocked. M5: macOS notifications dropped anyway (ad-hoc signing breaks approval on every rebuild) | Own toast window (§7) |
 | Login item blocked or managed by MDM | ✅ M2: works, survives restart | — |
 | XcodeGen output incompatible with Xcode 27.2 | `make project && make build` | Try `options.projectFileFormat: xcproj` (XcodeGen 2.48, experimental), or commit a hand-made project |
 | Settings window doesn't come to the front | ✅ M2: `openWindow` + `activate()` works | — |
@@ -220,7 +221,7 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 
 ## 12. Requirement → test map
 
-`StandupCore` line coverage is about 99.7% (`make coverage`). This table maps each user-facing requirement to the tests that prove it. App-level behavior (real banners, sounds, CoreAudio, lock notifications) is verified manually per PLAN milestone.
+`StandupCore` line coverage is about 99.7% (`make coverage`). This table maps each user-facing requirement to the tests that prove it. App-level behavior (real toast and pop-up windows, sounds, CoreAudio, lock notifications) is verified manually per PLAN milestone.
 
 | Requirement | Tests |
 |---|---|
@@ -228,14 +229,14 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 | Interval configurable (and clamped) | `rule3_*`, `intervalChangedWhileAwayAppliesOnReturn`, `intervalChangeWhilePopupShowingWaitsForDone`, `AppSettingsTests.intervalIsClamped` |
 | Active days and work hours | `ScheduleTests.*` (including DST), `rule2_noAlertsOutsideWorkHours`, `enablingTodayStartsCountdown`, `rule3_shrinkingHoursMakesIneligible` |
 | Hybrid clock: away restarts the countdown | `rule2_lockDiscardsCountdownAndUnlockGivesFullInterval`, `rule2_startedLockedStaysQuiet`, `rule8_*` |
-| Banner style (sound / silent) | `rule4_bannerWithSound`, `rule4_bannerWithoutSoundIsSilent` |
+| Corner toast style (sound / silent) | `rule4_bannerWithSound`, `rule4_bannerWithoutSoundIsSilent` |
 | Pop-up style, click to clear | `rule4_popupWaitsForDone`, `rule5_*`, `rule11_*` |
 | Mute presets and custom | `MuteTests.*`, `rule2_noAlertsWhileMuted`, `rule1_unmute*`, `rule1_expiredMute*`, `rule9_*` |
 | Mute survives restart | `SettingsStoreTests.muteUntilRoundTripAndClear`, `persistedMute*`, `ReminderControllerTests.muteSurvivesRestartAndShowsInMenu`, `unmuteClearsSavedMute`, `expiredMuteIsClearedFromStorage` |
 | Settings persist | `SettingsStoreTests.*`, `AppSettingsTests.roundTrips*`, `missingKeysDecodeToDefaults`, `ReminderControllerTests.settingsSurviveRestart`, `applyClampsBeforeSaving` |
 | Teams detection rule | `TeamsCallSignalTests.*` (cases from FINDINGS run 2) |
 | Call start/end timing | `MeetingDebouncerTests.*`, including the 54 s gap from FINDINGS run 1 |
-| Silent banner once per call | `rule4_inMeetingShowsOneSilentBannerPerCall`, `rule6_eachCallGetsItsOwnBanner` |
+| Nothing on screen during a call | `rule4_inMeetingShowsNothingOnScreen`, `rule4_longCallStillGivesOnlyOneAlertAfter`, `rule6_eachCallDefersIndependently` |
 | Reminder after call | `rule6_*`, `mutingDuringCallCancelsAfterCallReminder` |
 | Detection / after-call toggles | `rule4_detectionOffIgnoresMeetings`, `rule6_noAlertWhenToggleOff`, `rule6_turningDetectionOffDropsDeferredReminder` |
 | Never two reminders at once | `rule4_popupWaitsForDone`, `callDuringPopupNeverDoublesUp`, `rule7_*` |

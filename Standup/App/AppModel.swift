@@ -15,10 +15,17 @@ final class AppModel {
 
     private(set) var controller: ReminderController
 
+    @ObservationIgnored let sounds: any SoundPlaying
+    @ObservationIgnored private let toast: any ToastPresenting
+    @ObservationIgnored private let popup: any PopupPresenting
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private let log = Logger(subsystem: "dev.standup.Standup", category: "app")
 
     init() {
+        let sounds = SoundPlayer.shared
+        self.sounds = sounds
+        toast = ToastController()
+        popup = PopupAlertController(sounds: sounds)
         controller = ReminderController(store: SettingsStore(), minimumInterval: Self.minimumInterval)
         startTicking()
     }
@@ -42,16 +49,39 @@ final class AppModel {
     func unmute() { perform(controller.unmute()) }
     func send(_ event: ReminderEngine.Event) { perform(controller.send(event)) }
 
+    /// Settings → "Show test alert": shows the current style without touching the countdown.
+    func showTestAlert() {
+        switch settings.alertStyle {
+        case .banner: showToast(silent: settings.soundName == nil)
+        case .popup: popup.show(soundName: settings.soundName) { [weak self] in self?.popup.dismiss() }
+        }
+    }
+
     // MARK: Effects
 
     private func perform(_ effects: [ReminderEngine.Effect]) {
         for effect in effects {
             log.info("effect: \(String(describing: effect), privacy: .public)")
-            // M4 placeholder until real alerts exist (M5): treat a pop-up as instantly dismissed
-            // so the countdown keeps cycling instead of sticking on "Break time!".
-            if effect == .showPopup {
-                send(.popupDismissed)
+            switch effect {
+            case .showToast(let silent):
+                showToast(silent: silent)
+            case .showPopup:
+                popup.show(soundName: settings.soundName) { [weak self] in
+                    self?.popup.dismiss()
+                    self?.send(.popupDismissed)
+                }
+            case .dismissPopup:
+                popup.dismiss()
+            case .stopPopupSound:
+                popup.stopSound()
             }
+        }
+    }
+
+    private func showToast(silent: Bool) {
+        toast.show(title: AlertCopy.title, body: AlertCopy.body)
+        if !silent, let name = settings.soundName {
+            sounds.play(name)
         }
     }
 

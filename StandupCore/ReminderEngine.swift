@@ -18,8 +18,8 @@ public struct ReminderEngine: Sendable {
     }
 
     public enum Effect: Equatable, Sendable {
-        /// `silent`: post without sound (during a call, or when no sound is chosen).
-        case showBanner(silent: Bool)
+        /// The corner toast (style `.banner`). `silent` when no sound is chosen.
+        case showToast(silent: Bool)
         /// Show the pop-up; the app loops `settings.soundName` if set (DESIGN §4 rule 10).
         case showPopup
         case dismissPopup
@@ -47,7 +47,6 @@ public struct ReminderEngine: Sendable {
     public let calendar: Calendar
 
     private var wasEligible = false
-    private var shownMeetingBanner = false
     private var pendingAfterCall = false
 
     public init(settings: AppSettings, muteUntil: Date? = nil, screenAway: Bool = false, calendar: Calendar = .current) {
@@ -165,16 +164,11 @@ public struct ReminderEngine: Sendable {
 
         guard eligible, let dueAt, now >= dueAt else { return [] }
 
-        // Rule 4
+        // Rule 4: during a call nothing is shown (it could appear in a screen share); defer instead.
         if inMeeting {
-            var effects: [Effect] = []
-            if !shownMeetingBanner {
-                shownMeetingBanner = true
-                effects.append(.showBanner(silent: true))
-            }
             pendingAfterCall = true
             self.dueAt = now.addingTimeInterval(settings.interval)
-            return effects
+            return []
         }
         return fireNormalAlert(at: now)
     }
@@ -184,7 +178,7 @@ public struct ReminderEngine: Sendable {
         switch settings.alertStyle {
         case .banner:
             dueAt = now.addingTimeInterval(settings.interval)
-            return [.showBanner(silent: settings.soundName == nil)]
+            return [.showToast(silent: settings.soundName == nil)]
         case .popup:
             popupShowing = true
             dueAt = nil
@@ -194,12 +188,16 @@ public struct ReminderEngine: Sendable {
 
     private mutating func clearMeetingFlags() {
         pendingAfterCall = false
-        shownMeetingBanner = false
     }
+}
+
+/// Corner toast timing (DESIGN §7). Applied by the app's ToastController.
+public enum ToastTiming {
+    public static let visibleDuration: TimeInterval = 10
 }
 
 /// Pop-up sound timing (DESIGN §4 rule 10). Applied by the app's PopupAlertController.
 public enum PopupSoundTiming {
-    public static let repeatInterval: TimeInterval = 4
+    public static let repeatInterval: TimeInterval = 1.2
     public static let maxDuration: TimeInterval = 120
 }

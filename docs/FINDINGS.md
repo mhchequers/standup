@@ -92,6 +92,8 @@ Also: the device-level `runningSomewhere` flipped to true during pre-join and ba
 | B3 | Result text in the menu | |
 | B4 | System Settings → Notifications → Standup: anything greyed out or managed by the organization? | |
 
+> **Later (M5):** the approval did **not** carry over to later builds. Rebuilt ad-hoc apps get "Notifications are not allowed for this application" with no new prompt, because the designated requirement is the build's `cdhash`. macOS notifications were dropped in favor of Standup's own toast window. See PLAN M5 notes and DESIGN §7.
+
 ---
 
 ## Test C — Launch at login ✅

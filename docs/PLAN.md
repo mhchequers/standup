@@ -103,7 +103,7 @@ Goal: all scheduling and decision logic implemented and tested, with no UI yet.
 - Deviation: no `FakeClock`. `ReminderEngine.handle(_:at:)` takes the time explicitly, which keeps the engine a pure value type and makes tests simpler. `Clock`/`SystemClock` stay for `AppModel`.
 - Added to Core, beyond the original list: **`TeamsCallSignal`** (the M2 detection rule, tested against FINDINGS run-2 cases) and **`StatusText`** (menu strings, with tests). Both are pure, so they belong here rather than in M7 or M4.
 - `stateChanged` effect dropped. The UI observes the engine directly.
-- Rule 10 (pop-up sound cap) is presentation, so it lives in M5's pop-up controller. Core provides `PopupSoundTiming` (4 s repeat, 120 s cap).
+- Rule 10 (pop-up sound cap) is presentation, so it lives in M5's pop-up controller. Core provides `PopupSoundTiming` (120 s cap; repeat tuned 4 s → 1.2 s in M5).
 - `AppSettings` decoding tolerates missing keys (older saved versions), and settings are stored under `settings.v1`.
 - Sound "None" is allowed for both styles. DESIGN §8 was updated.
 
@@ -141,15 +141,25 @@ Goal: everything configurable, with the menu reflecting state. No alerts yet.
 ## M5 — Alerts (MVP: usable daily from here)
 Goal: reminders actually fire.
 
-- [ ] `SoundPlayer`: list `/System/Library/Sounds`, play, stop, and loop with the 2-minute cap (DESIGN §4 rule 10)
-- [ ] `BannerNotifier`: authorization request; single replaceable notification; silent posting with sound via `SoundPlayer`; denied-state hint in the menu
-- [ ] `PopupAlertController` + `PopupView`: non-activating floating `NSPanel`, all Spaces, **Done** dismisses it, `sharingType = .none` best-effort (DESIGN §7)
-- [ ] Wire engine effects to these, and wire Preview buttons in Settings
-- [ ] Debug-only: allow a 1-minute interval for quick testing
+- [x] `SoundPlayer`: list `/System/Library/Sounds`, play, stop, and loop with the 2-minute cap (DESIGN §4 rule 10). The loop lives in `PopupAlertController`.
+- [x] ~~`BannerNotifier`~~ → **`ToastController`**: our own corner toast, hides after 10 s, click to hide, sound once (DESIGN §7). See notes.
+- [x] `PopupAlertController` + `PopupView`: non-activating floating `NSPanel`, all Spaces, **Done** dismisses it, `sharingType = .none` best-effort (DESIGN §7)
+- [x] Wire engine effects to these, and wire Preview buttons in Settings
+- [x] Debug-only: allow a 1-minute interval for quick testing
 
-**Verify:** with a 1-min interval in Debug, confirm that banner style shows a banner plus sound (and a silent one when sound is None). Pop-up style shows a window with a looping sound, Done clears it, and the next reminder comes one interval after Done. Mute stops alerts. Outside work hours gives no alerts. Then `make install` and use it for real.
+**Verify:** with a 1-min interval in Debug, confirm that toast style shows a toast plus sound (and a silent one when sound is None). Pop-up style shows a window with a looping sound, Done clears it, and the next reminder comes one interval after Done. Mute stops alerts. Outside work hours gives no alerts. Then `make install` and use it for real.
 
-⏸ **Commit point:** `feat(alerts): banner and pop-up alerts with sounds` (tag `v0.1.0` if desired)
+**Notes:**
+- **macOS notifications dropped.** The installed build failed with "Notifications are not allowed for this application". Cause: ad-hoc signing means the designated requirement is the build's `cdhash`, so each rebuild is a "new" app to the notification service, with no new prompt. (M2 passed only because it was the first build to ask.) Options offered: a self-signed cert, an Apple ID team, or our own window. **The user chose our own window.** `BannerNotifier` and `UserNotifications` were removed, and the "Banner" style is now **Corner toast** (saved value is still `banner`).
+- **During calls nothing is shown** (DESIGN §4 rule 4, §5): our windows can't be reliably hidden from screen share. Engine effect `showCallBanner` was removed, and `showBanner` was renamed to `showToast`.
+- Also found: stale LaunchServices registrations from the old `build/` dir, which were removed with `lsregister -u`. Debug and Release build products also get registered, which is harmless now that notifications aren't used. The README log command needs `/usr/bin/log`, because `log` is a zsh built-in.
+- "Show test alert" button added to Settings → Alerts. It shows the current style without touching the countdown.
+- The M4 auto-dismiss placeholder was removed.
+- Smoke-tested in Debug with a 1-min interval: `showPopup` and `showToast` fired on time (checked in logs). The user's settings were backed up and restored around the test.
+- Pop-up sound repeat shortened from 4 s to 1.2 s after user feedback.
+- 99 tests.
+
+⏸ **Commit point:** `feat(alerts): corner toast and pop-up alerts with sounds` (tag `v0.1.0` if desired)
 
 ---
 
@@ -167,13 +177,13 @@ Goal: reminders actually fire.
 ## M7 — Teams call detection
 - [ ] `MicUsageProbe`: CoreAudio process-object reads with a long-lived in-process client, own PID excluded, and the prefix list from M2 findings (DESIGN §5)
 - [ ] `MeetingMonitor`: 5 s poll → `MeetingDebouncer` → engine `meetingStarted` / `meetingEnded`. Respects the "Detect Teams calls" toggle.
-- [ ] Engine rules 4 (meeting branch), 6, and 7 wired. Silent banner copy: "Time for a break — we'll remind you after your call."
+- [ ] Engine rules 4 (meeting branch: nothing shown), 6, and 7 wired
 - [ ] Menu status "In a Teams call — will remind after" and the call icon
 - [ ] "Remind after call ends" toggle wired
 - [ ] Optional: a Debug-only menu item "Simulate call start/end" for testing without Teams
 - [ ] Debug logging of the raw Teams signal (per poll) to check for gaps over 60 s during a real multi-person call with camera and screen-share toggles (FINDINGS conclusion 8)
 
-**Verify** (with the user, real Teams call, 1–2 min interval): exactly one silent banner during the call (and hidden when screen sharing), a normal alert about 60 s after leaving, and none if the toggle is off. A muted call still counts. Opening Teams without a call does nothing.
+**Verify** (with the user, real Teams call, 1–2 min interval): nothing on screen during the call (menu shows the call state), a normal alert about 60 s after leaving, and none if the toggle is off. A muted call still counts. Opening Teams without a call does nothing.
 
 ⏸ **Commit point:** `feat: detect Teams calls and defer reminders`
 
@@ -205,5 +215,5 @@ Goal: reminders actually fire.
 ## Backlog (not committed to; ask before doing)
 - A bundled or custom jingle sound file (user-chosen file)
 - Detecting other call apps (Zoom, Meet in Chrome). The prefix list makes this easy.
-- A custom in-app toast if notifications are blocked by MDM
+- macOS notification banners again, if ever wanted. They need a stable signing identity (self-signed cert or Apple ID team), see M5 notes.
 - A Homebrew-style or DMG release if it's ever shared with coworkers (needs a Developer ID and notarization)

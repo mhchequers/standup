@@ -121,14 +121,14 @@ import Testing
     @Test func rule4_bannerWithSound() {
         var e = makeEngine { $0.alertStyle = .banner }
         _ = e.handle(.tick, at: date(Nov.mon, 10, 0))
-        #expect(e.handle(.tick, at: date(Nov.mon, 10, 30)) == [.showBanner(silent: false)])
+        #expect(e.handle(.tick, at: date(Nov.mon, 10, 30)) == [.showToast(silent: false)])
         #expect(e.dueAt == date(Nov.mon, 11, 0))
     }
 
     @Test func rule4_bannerWithoutSoundIsSilent() {
         var e = makeEngine { $0.alertStyle = .banner; $0.soundName = nil }
         _ = e.handle(.tick, at: date(Nov.mon, 10, 0))
-        #expect(e.handle(.tick, at: date(Nov.mon, 10, 30)) == [.showBanner(silent: true)])
+        #expect(e.handle(.tick, at: date(Nov.mon, 10, 30)) == [.showToast(silent: true)])
     }
 
     @Test func rule4_bannerRepeatsEveryInterval() {
@@ -144,13 +144,20 @@ import Testing
         #expect(e.popupShowing && e.dueAt == nil)
     }
 
-    @Test func rule4_inMeetingShowsOneSilentBannerPerCall() {
-        var e = makeEngine()
+    @Test func rule4_inMeetingShowsNothingOnScreen() {
+        var e = makeEngine { $0.alertStyle = .banner }
         _ = e.handle(.tick, at: date(Nov.mon, 10, 0))
         _ = e.handle(.meetingChanged(true), at: date(Nov.mon, 10, 5))
-        let effects = tick(&e, from: date(Nov.mon, 10, 5), to: date(Nov.mon, 11, 45))
-        #expect(effects.map(\.1) == [.showBanner(silent: true)])
-        #expect(effects.first?.0 == date(Nov.mon, 10, 30))
+        #expect(tick(&e, from: date(Nov.mon, 10, 5), to: date(Nov.mon, 11, 45)).isEmpty)
+        #expect(e.status(at: date(Nov.mon, 11, 45)) == .inMeeting(willRemindAfter: true))
+    }
+
+    @Test func rule4_longCallStillGivesOnlyOneAlertAfter() {
+        var e = makeEngine { $0.alertStyle = .banner }
+        _ = e.handle(.tick, at: date(Nov.mon, 10, 0))
+        _ = e.handle(.meetingChanged(true), at: date(Nov.mon, 10, 5))
+        tick(&e, from: date(Nov.mon, 10, 5), to: date(Nov.mon, 12, 0))  // 4 reminders came due
+        #expect(e.handle(.meetingChanged(false), at: date(Nov.mon, 12, 1)) == [.showToast(silent: false)])
     }
 
     @Test func rule4_detectionOffIgnoresMeetings() {
@@ -184,7 +191,7 @@ import Testing
         var e = makeEngine(configure)
         _ = e.handle(.tick, at: date(Nov.mon, 10, 0))
         _ = e.handle(.meetingChanged(true), at: date(Nov.mon, 10, 5))
-        tick(&e, from: date(Nov.mon, 10, 5), to: date(Nov.mon, 10, 40))  // silent banner at 10:30
+        tick(&e, from: date(Nov.mon, 10, 5), to: date(Nov.mon, 10, 40))  // deferred at 10:30
         return e
     }
 
@@ -195,7 +202,7 @@ import Testing
 
     @Test func rule6_bannerStyleAfterCall() {
         var e = engineWithDeferredReminder { $0.alertStyle = .banner }
-        #expect(e.handle(.meetingChanged(false), at: date(Nov.mon, 10, 50)) == [.showBanner(silent: false)])
+        #expect(e.handle(.meetingChanged(false), at: date(Nov.mon, 10, 50)) == [.showToast(silent: false)])
         #expect(e.dueAt == date(Nov.mon, 11, 20))
     }
 
@@ -226,11 +233,12 @@ import Testing
         #expect(e.handle(.meetingChanged(false), at: date(Nov.mon, 17, 10)).isEmpty)
     }
 
-    @Test func rule6_eachCallGetsItsOwnBanner() {
+    @Test func rule6_eachCallDefersIndependently() {
         var e = engineWithDeferredReminder { $0.alertStyle = .banner }
-        _ = e.handle(.meetingChanged(false), at: date(Nov.mon, 10, 50))  // after-call banner, due 11:20
+        _ = e.handle(.meetingChanged(false), at: date(Nov.mon, 10, 50))  // after-call toast, due 11:20
         _ = e.handle(.meetingChanged(true), at: date(Nov.mon, 11, 0))
-        #expect(e.handle(.tick, at: date(Nov.mon, 11, 20)) == [.showBanner(silent: true)])
+        #expect(e.handle(.tick, at: date(Nov.mon, 11, 20)).isEmpty)       // deferred again
+        #expect(e.handle(.meetingChanged(false), at: date(Nov.mon, 11, 30)) == [.showToast(silent: false)])
     }
 
     @Test func rule6_turningDetectionOffDropsDeferredReminder() {
