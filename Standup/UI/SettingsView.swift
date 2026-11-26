@@ -89,14 +89,35 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("General") {
+            Section {
+                Toggle("Launch at login", isOn: Binding(
+                    get: { model.loginItemStatus == .enabled || model.loginItemStatus == .requiresApproval },
+                    set: { model.setLaunchAtLogin($0) }
+                ))
+                .disabled(!model.loginItem.isInstalledLocation)
+                if model.loginItemStatus == .requiresApproval {
+                    LabeledContent("Needs approval in System Settings") {
+                        Button("Open Login Items…") { model.loginItem.openSystemSettings() }
+                    }
+                }
                 LabeledContent("Version", value: Self.version)
+            } header: {
+                Text("General")
+            } footer: {
+                if !model.loginItem.isInstalledLocation {
+                    Text("Launch at login is only available for the installed app (/Applications). Run `make install`.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)
         .frame(width: 480)
         .fixedSize(horizontal: false, vertical: true)
-        .onAppear { draft = model.settings }
+        .onAppear {
+            draft = model.settings
+            model.refreshLoginItemStatus()
+        }
         .onChange(of: draft) { _, newValue in
             if newValue.workEnd > newValue.workStart {
                 model.apply(newValue)

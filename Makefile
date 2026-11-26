@@ -13,6 +13,7 @@ XCODEBUILD_BASE := xcodebuild -project $(PROJECT) -scheme $(APP_NAME) \
 XCODEBUILD  := $(XCODEBUILD_BASE) -quiet
 DEBUG_APP   := $(BUILD_DIR)/Build/Products/Debug/$(APP_NAME).app
 RELEASE_APP := $(BUILD_DIR)/Build/Products/Release/$(APP_NAME).app
+LSREGISTER  := /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 
 .PHONY: help project build test coverage run install uninstall quit clean
 
@@ -51,10 +52,18 @@ install: project
 	@$(MAKE) --no-print-directory quit
 	rm -rf "$(INSTALLED)"
 	ditto "$(RELEASE_APP)" "$(INSTALLED)"
+	@# Keep macOS's app registry pointing only at the installed copy (not the build products).
+	@-$(LSREGISTER) -u "$(CURDIR)/$(RELEASE_APP)" "$(CURDIR)/$(DEBUG_APP)" 2>/dev/null
+	@$(LSREGISTER) -f "$(INSTALLED)"
 	open "$(INSTALLED)"
 	@echo "Installed $(INSTALLED)"
 
 uninstall: quit
+	@if [ -x "$(INSTALLED)/Contents/MacOS/$(APP_NAME)" ]; then \
+		"$(INSTALLED)/Contents/MacOS/$(APP_NAME)" --unregister-login-item; fi
+	@-$(LSREGISTER) -u "$(INSTALLED)" 2>/dev/null
+	@# So a later reinstall registers the login item again (LoginItemManager.attemptedKey).
+	@-defaults delete $(BUNDLE_ID) loginItem.autoRegisterAttempted 2>/dev/null
 	rm -rf "$(INSTALLED)"
 ifeq ($(PURGE),1)
 	-defaults delete $(BUNDLE_ID)

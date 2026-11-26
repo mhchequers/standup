@@ -3,7 +3,8 @@
 Standup is a native macOS menu bar break-reminder app (Swift 6 + SwiftUI, XcodeGen, no dependencies).
 
 ## Read first
-- `docs/PLAN.md`: the milestone sequence. Work on the **next unchecked milestone** only. Tick its checkboxes, add notes on deviations, and stop at its **Commit point** so the user can commit.
+- `docs/PLAN.md`: the build history (M0–M8 done) and **M9 dogfood log**. New work: record the request or bug under M9 (or the Backlog), update DESIGN first if behavior changes, implement with tests, then stop. **Before committing, tell the user what to check and wait for their approval**, then commit to `main` and push.
+- `docs/FINDINGS.md`: facts verified on the real Mac (Teams processes, signing and notification limits). Check it before changing detection or alerts.
 - `docs/DESIGN.md`: the source of truth for behavior. §4 is the reminder engine spec. If the implementation needs to differ, update DESIGN.md in the same change.
 
 ## Commands
@@ -14,5 +15,7 @@ Standup is a native macOS menu bar break-reminder app (Swift 6 + SwiftUI, XcodeG
 - OS integrations live in `Standup/Services/`, each behind a protocol.
 - Never edit the generated `.xcodeproj`. Edit `project.yml` and run `make project`.
 - Never spawn subprocesses for periodic polling (see DESIGN §5).
+- Don't reintroduce macOS notifications (`UserNotifications`): ad-hoc signing breaks approval on every rebuild (DESIGN §7, PLAN M5).
+- Builds are ad-hoc signed, and only `/Applications/Standup.app` registers as a login item (DESIGN §9).
 - Manual testing: use the Debug build (`make run`: 1-min interval, Debug ▸ Simulate call). It shares settings with the installed app, so **back up the user's settings with `defaults export` first, and restore them and `make install` afterward** (README "Debug builds").
 - Don't add features listed as out of scope in DESIGN §1 or in the PLAN backlog without asking.

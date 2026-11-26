@@ -6,6 +6,7 @@ struct StandupApp: App {
     @State private var model: AppModel
 
     init() {
+        LoginItemManager.unregisterAndExitIfRequested()  // `make uninstall`
         SingleInstance.enforce()
         _model = State(initialValue: AppModel())
     }

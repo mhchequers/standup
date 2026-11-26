@@ -52,6 +52,7 @@ StandupCore/      Framework target: pure logic, Foundation only, 100% unit teste
     TeamsCallSignal.swift   the verified "is Teams in a call" rule over AudioProcessSample values (§5)
     StatusText.swift        menu status line strings
     ScreenAwayTracker.swift combines the away signals (§6)
+    LoginItemPolicy.swift   when to auto-register; installed-location check (§9)
     MeetingDetector.swift   TeamsCallSignal + MeetingDebouncer: one poll of the detection pipeline (§5)
     ReminderController.swift engine + SettingsStore + clock + status/icon: all app wiring that doesn't need AppKit (tested)
     Clock.swift             protocol Clock { var now: Date }, SystemClock (the engine takes `at:` instead of a clock)
@@ -64,7 +65,7 @@ Standup/
     ToastController.swift      corner toast + shared FloatingPanel (non-activating, all Spaces)
     PopupAlertController.swift floating NSPanel + looping sound
     SoundPlayer.swift          NSSound wrapper, system sound list
-    LoginItemManager.swift     SMAppService.mainApp
+    LoginItemManager.swift     SMAppService.mainApp; first-launch auto-register; --unregister-login-item
   UI/
     MenuContent.swift       the MenuBarExtra menu
     SettingsView.swift      settings window
@@ -72,7 +73,7 @@ Standup/
     PopupView.swift         content of the pop-up alert
   Resources/      Assets.xcassets (AppIcon). Info.plist is generated from INFOPLIST_KEY_* build settings in project.yml.
 StandupTests/     Swift Testing tests; links only StandupCore, so the app never launches during tests
-scripts/          mic-probe.swift (diagnostic), make-icon.swift (optional)
+scripts/          mic-probe.swift (diagnostic), make-icon.swift (generates AppIcon.appiconset)
 ```
 
 **Data flow:** OS monitors → `AppModel` turns OS signals into `ReminderEngine.Event`s → `engine.handle(event, at: now)` returns `[Effect]` → `AppModel` performs the effects (show toast, show or dismiss pop-up, play or stop sound). A tick (every 5 s) drives time-based events. The menu observes the engine, which is a value type stored on the `@Observable` `AppModel`, so there's no explicit refresh effect.
@@ -200,7 +201,8 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 
 - `SMAppService.mainApp.register()` / `.unregister()`. Status is read from `.status`. On `.requiresApproval`, a button calls `SMAppService.openSystemSettingsLoginItems()`.
 - **It only registers when running from `/Applications/Standup.app`.** Debug builds run from DerivedData, and registering those creates a duplicate login item per build path. That's a known issue with unsigned or ad-hoc builds. In Debug builds the toggle is disabled and says why.
-- On first launch from `/Applications` it registers automatically, matching the default of On. macOS then shows a "Standup added a login item" notification, which is expected.
+- On first launch from `/Applications` it registers automatically, matching the default of On. This happens **once**: the flag `loginItem.autoRegisterAttempted` is set, so if you later turn it off, it stays off. An existing registration (e.g., from M2) is adopted. macOS may show a "login item added" notice, which is expected.
+- `make uninstall` runs `--unregister-login-item`, clears that flag (so a reinstall registers again), and unregisters the app from LaunchServices. `make install` also unregisters the repo's build products from LaunchServices, so macOS only knows the installed copy. Verified in M8: after uninstall, `sfltool dumpbtm` shows the item `disabled`; after reinstall, `enabled`.
 - The `--unregister-login-item` launch argument unregisters and exits. `make uninstall` uses it.
 - **Fallback** if `SMAppService` misbehaves with ad-hoc signing on the company Mac: sign with a free Apple ID "Personal Team" in Xcode, or have `make install` write a `~/Library/LaunchAgents/dev.standup.Standup.plist` with `RunAtLoad`.
 
@@ -244,5 +246,6 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 | Nothing on screen during a call | `rule4_inMeetingShowsNothingOnScreen`, `rule4_longCallStillGivesOnlyOneAlertAfter`, `rule6_eachCallDefersIndependently` |
 | Reminder after call | `rule6_*`, `mutingDuringCallCancelsAfterCallReminder` |
 | Detection / after-call toggles | `rule4_detectionOffIgnoresMeetings`, `rule6_noAlertWhenToggleOff`, `rule6_turningDetectionOffDropsDeferredReminder` |
+| Launch at login (installed copy only, once) | `LoginItemPolicyTests.*` (manual: restart check in PLAN M8) |
 | Never two reminders at once | `rule4_popupWaitsForDone`, `callDuringPopupNeverDoublesUp`, `rule7_*` |
 | Menu status text and icon | `StatusTextTests.*`, `statusReflectsState`, `statusPriority`, `ReminderControllerTests.statusLineCountsDownWithClock`, `callShowsCallIcon` |

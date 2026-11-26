@@ -2,6 +2,7 @@ import AppKit
 import Observation
 import StandupCore
 import os
+import ServiceManagement
 
 /// Thin @Observable wrapper: drives `ReminderController` with a timer and performs its effects (DESIGN §3).
 @MainActor @Observable
@@ -14,12 +15,15 @@ final class AppModel {
     static let tickInterval: Duration = .seconds(5)
 
     private(set) var controller: ReminderController
+    /// Mirrors SMAppService status for the Settings toggle; refreshed when Settings opens or changes it.
+    private(set) var loginItemStatus: SMAppService.Status = .notRegistered
 
     @ObservationIgnored let sounds: any SoundPlaying
     @ObservationIgnored private let toast: any ToastPresenting
     @ObservationIgnored private let popup: any PopupPresenting
     @ObservationIgnored private let screen: any ScreenStateMonitoring
     @ObservationIgnored private let meetings: any MeetingMonitoring
+    @ObservationIgnored let loginItem: any LoginItemManaging
     @ObservationIgnored private var tickTask: Task<Void, Never>?
     @ObservationIgnored private let log = Logger(subsystem: "dev.standup.Standup", category: "app")
 
@@ -30,6 +34,7 @@ final class AppModel {
         popup = PopupAlertController(sounds: sounds)
         screen = ScreenStateMonitor()
         meetings = MeetingMonitor()
+        loginItem = LoginItemManager()
         controller = ReminderController(store: SettingsStore(), minimumInterval: Self.minimumInterval)
         if screen.isAway {
             send(.screenAwayChanged(true))  // e.g. launched at login before unlocking
@@ -41,6 +46,8 @@ final class AppModel {
             self?.send(.meetingChanged(inCall))
         }
         meetings.setEnabled(controller.settings.detectTeamsCalls)
+        loginItem.autoRegisterIfNeeded()
+        refreshLoginItemStatus()
         startTicking()
     }
 
@@ -57,6 +64,16 @@ final class AppModel {
     }
 
     // MARK: UI actions
+
+    func setLaunchAtLogin(_ enabled: Bool) {
+        loginItem.setEnabled(enabled)
+        refreshLoginItemStatus()
+    }
+
+    func refreshLoginItemStatus() {
+        let status = loginItem.status
+        if status != loginItemStatus { loginItemStatus = status }
+    }
 
     func apply(_ newSettings: AppSettings) {
         perform(controller.apply(newSettings))

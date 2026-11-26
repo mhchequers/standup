@@ -205,13 +205,20 @@ Goal: reminders actually fire.
 ---
 
 ## M8 — Launch at login and install polish
-- [ ] `LoginItemManager` (DESIGN §9): register on first launch from `/Applications`; Settings toggle with live status; `.requiresApproval` button; Debug builds disabled with an explanation
-- [ ] `--unregister-login-item` launch argument; `make uninstall` uses it
-- [ ] App icon (`Assets.xcassets/AppIcon`). A simple generated icon is fine (optional `scripts/make-icon.swift` rendering an SF Symbol).
-- [ ] `make install` re-run is a clean upgrade (quits the old version, keeps settings)
-- [ ] README: finalize install, update, uninstall, and troubleshooting against reality
-- [ ] Refresh `CLAUDE.md`: switch from "next milestone" to a maintenance workflow, and add gotchas learned during the build (e.g., M2 findings)
-- [ ] Bump the version to `1.0.0`
+- [x] `LoginItemManager` (DESIGN §9): register on first launch from `/Applications`; Settings toggle with live status; `.requiresApproval` button; Debug builds disabled with an explanation
+- [x] `--unregister-login-item` launch argument; `make uninstall` uses it
+- [x] App icon (`Assets.xcassets/AppIcon`). A simple generated icon is fine (optional `scripts/make-icon.swift` rendering an SF Symbol).
+- [x] `make install` re-run is a clean upgrade (quits the old version, keeps settings)
+- [x] README: finalize install, update, uninstall, and troubleshooting against reality
+- [x] Refresh `CLAUDE.md`: switch from "next milestone" to a maintenance workflow, and add gotchas learned during the build (e.g., M2 findings)
+- [x] Bump the version to `1.0.0`
+
+**Notes:**
+- `LoginItemPolicy` (Core, tested) decides when to auto-register: installed copy only, once. `LoginItemManager` adopts the M2 registration. Settings → General has a **Launch at login** toggle with live status. It's disabled with an explanation in Debug builds, and shows an "Open Login Items…" button if approval is needed.
+- `make uninstall`: `--unregister-login-item`, clear the auto-register flag, LaunchServices unregister, remove the app (settings kept unless `PURGE=1`). `make install` now also unregisters the build products from LaunchServices. Uninstall → reinstall verified with `sfltool dumpbtm` (disabled → enabled), and settings survived the cycle unchanged.
+- App icon: `scripts/make-icon.swift` renders `figure.stand` on a teal→blue tile into `Standup/Resources/Assets.xcassets`. The generated PNGs are committed.
+- Version 1.0.0. Fixed a Swift 6 actor warning in the toast fade-out. The intermittent "failed with exit code 0" xcodebuild line went away with it.
+- 113 tests. User verified: new icon, toggle on, auto-start after restart.
 
 **Verify:** fresh `make install`, reboot, and Standup is in the menu bar. Toggle launch at login off, reboot, and it's not running. `make uninstall` leaves no login item behind (System Settings → Login Items).
 

@@ -54,7 +54,7 @@ final class ToastController: ToastPresenting {
             return
         }
         NSAnimationContext.runAnimationGroup({ $0.duration = 0.3; panel.animator().alphaValue = 0 },
-                                             completionHandler: { panel.orderOut(nil) })
+                                             completionHandler: { Task { @MainActor in panel.orderOut(nil) } })
     }
 }
 

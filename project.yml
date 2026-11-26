@@ -10,7 +10,7 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
-    MARKETING_VERSION: 0.1.0
+    MARKETING_VERSION: 1.0.0
     CURRENT_PROJECT_VERSION: 1
     # Ad-hoc signing: personal use, no Apple Developer account needed (DESIGN §2)
     CODE_SIGN_IDENTITY: "-"
@@ -36,6 +36,7 @@ targets:
         INFOPLIST_KEY_LSUIElement: YES
         INFOPLIST_KEY_CFBundleDisplayName: Standup
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.healthcare-fitness
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 
   # Pure logic (no AppKit/CoreAudio). Lets tests run without launching the app.
   StandupCore:
