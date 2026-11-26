@@ -228,6 +228,9 @@ Goal: reminders actually fire.
 
 ## M9 — Dogfood week
 - [ ] Use it for real for about a week. Log annoyances in this section.
+
+**Log:**
+- 2026-11-25: `meeting` log lines moved from info (memory-only) to **notice** (saved on disk for days), so multi-person calls can be reviewed afterwards. Check after a few real calls: `/usr/bin/log show --last 3d --predicate 'subsystem == "dev.standup.Standup" && category == "meeting"' --style compact`
 - [ ] Fix bugs and tune defaults (interval, debounce timings, sound cap).
 
 ⏸ **Commit point(s):** per fix.

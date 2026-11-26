@@ -140,6 +140,7 @@ This is the source of truth for timing behavior. Tests in `StandupTests/Reminder
 - **Polling:** every 5 s, **in-process**, with one long-lived CoreAudio client. **Never spawn a subprocess per poll.** One project polled by spawning a helper every 3 s, and after about an hour macOS power management broke ([yogurt#143](https://github.com/FrigadeHQ/yogurt/issues/143)). Polling is chosen over property listeners because listeners on `IsRunningInput` have been reported not to fire on recent macOS. **Don't use `kAudioDevicePropertyDeviceIsRunningSomewhere`**: in M2 it read false while Teams was capturing.
 - **Debounce** (`MeetingDebouncer`, pure, tested):
   - **start:** Teams input is active for ≥ 10 s continuously. This ignores device-test blips.
+  - **Logging:** detection on/off, raw signal transitions (with the active Teams processes), and call started/ended are logged at **notice** level (category `meeting`), so they're kept on disk for days and calls can be reviewed later. Other categories use info level, which is memory-only.
   - **end:** Teams is inactive for ≥ 60 s continuously. This ignores quick hiccups and rejoins. M2 saw a 54 s mid-call input gap, likely from a camera or screen-share toggle.
 - **No device-level fallback:** M2 showed the device property is unreliable. If process objects ever stop working, revisit the design rather than guessing.
 

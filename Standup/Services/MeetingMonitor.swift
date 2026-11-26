@@ -31,7 +31,7 @@ final class MeetingMonitor: MeetingMonitoring {
     func setEnabled(_ enabled: Bool) {
         guard enabled != self.enabled else { return }
         self.enabled = enabled
-        log.info("detection \(enabled ? "on" : "off", privacy: .public)")
+        log.notice("detection \(enabled ? "on" : "off", privacy: .public)")
         if enabled {
             pollTask = Task { [weak self] in
                 while !Task.isCancelled {
@@ -55,10 +55,10 @@ final class MeetingMonitor: MeetingMonitoring {
             // Raw transitions only (not every poll): enough to spot gaps longer than the 60 s end debounce.
             let teams = samples.filter { $0.bundleID.hasPrefix(TeamsCallSignal.teamsBundlePrefix) && ($0.isRunningInput || $0.isRunningOutput) }
                 .map { "\($0.bundleID)[\($0.isRunningInput ? "in" : "")\($0.isRunningOutput ? "out" : "")]" }
-            log.info("raw teams signal=\(update.raw, privacy: .public) \(teams.joined(separator: " "), privacy: .public)")
+            log.notice("raw teams signal=\(update.raw, privacy: .public) \(teams.joined(separator: " "), privacy: .public)")
         }
         if let changed = update.meetingChanged {
-            log.info("call \(changed ? "started" : "ended", privacy: .public)")
+            log.notice("call \(changed ? "started" : "ended", privacy: .public)")
             onChange?(changed)
         }
     }

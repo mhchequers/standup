@@ -70,7 +70,9 @@ Every 5 seconds, Standup checks which apps are using the microphone or speaker, 
 - **No reminders appear:** check the menu's status line. It says why: muted, outside work hours, or in a Teams call. **Settings → Alerts → Show test alert** shows one immediately.
 - **Doesn't start after a reboot:** check that **Settings → General → Launch at login** is on, and that Standup is allowed under System Settings → General → Login Items & Extensions.
 - **"Launch at login" is greyed out:** you're running a Debug build (`make run`). Only the copy in `/Applications` can launch at login, so run `make install`.
-- **A Teams call wasn't detected:** check the log's `meeting` lines (command below), or run `swift scripts/mic-probe.swift` during a call to see which processes hold the mic.
+- **A Teams call wasn't detected:** Teams-detection lines are saved for several days, so you can look back:
+  `/usr/bin/log show --last 1d --predicate 'subsystem == "dev.standup.Standup" && category == "meeting"' --style compact`
+  Look for gaps between `raw teams signal=false` and the next `true` during a call; over 60 s ends the call early. Or run `swift scripts/mic-probe.swift` during a call to see which processes hold the mic.
 - **"Standup can't be opened" warning:** this only happens if the app was copied from somewhere else, such as downloaded. Run `xattr -dr com.apple.quarantine /Applications/Standup.app`.
 - **Logs:** `/usr/bin/log stream --info --predicate 'subsystem == "dev.standup.Standup"'`. Use the full path, because in zsh `log` is a different, built-in command.
 - **Teams detection diagnostics:** `swift scripts/mic-probe.swift` lists which apps are using the mic right now
