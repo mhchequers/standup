@@ -1,5 +1,7 @@
 # Standup — Implementation Plan
 
+> **Status:** M0–M8 are complete and shipped as **v1.0.0** (2026-11-25). M9 (dogfooding) is ongoing: log feedback and fixes in its **Log** section.
+
 This file is the end-to-end build sequence. Each milestone ends in a working, committable state and is marked **⏸ Commit point**. Behavior details live in [DESIGN.md](DESIGN.md), and this file links to them by section (e.g., "DESIGN §4").
 
 **Workflow per milestone**

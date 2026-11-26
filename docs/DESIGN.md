@@ -229,7 +229,7 @@ The picker lists `/System/Library/Sounds/*.aiff` (Glass, Hero, Ping, Submarine, 
 
 ## 12. Requirement → test map
 
-`StandupCore` line coverage is about 99.7% (`make coverage`). This table maps each user-facing requirement to the tests that prove it. App-level behavior (real toast and pop-up windows, sounds, CoreAudio, lock notifications) is verified manually per PLAN milestone.
+`StandupCore` line coverage is about 99.6% (`make coverage`, as of v1.0.0). This table maps each user-facing requirement to the tests that prove it. App-level behavior (real toast and pop-up windows, sounds, CoreAudio, lock notifications) is verified manually per PLAN milestone.
 
 | Requirement | Tests |
 |---|---|
